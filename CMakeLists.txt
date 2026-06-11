@@ -57,6 +57,7 @@ target_sources(${TARGET_NAME}
         "src/logger.hh"
         "include/triengine_ipc/transport/ipc_service.hh"
         "include/triengine_ipc/proto/ipc_proto.hh"
+        "include/triengine_ipc/proto/input_events.hh"
         "include/triengine_ipc/detail/bit.hh"
 )
 
@@ -87,4 +88,53 @@ if (MSVC)
     target_compile_options(${TARGET_NAME} PRIVATE /W4)
 else()
     target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# ----------------------------------------------------------------------------
+# Surface toolkit target (Triengine::ipc_surface)
+#
+# A second library, layered on top of the transport/proto body, that holds the
+# DX11 shared-surface interop shared by inter-process viewer clients
+# (shared_surface_consumer) and the server-side handshake glue used by renderer
+# servers (shared_surface_provider). It depends on the body PUBLIC and on the
+# DirectX libraries PRIVATE, so the body itself stays free of any graphics
+# dependency; only consumers that need surface sharing link this target.
+# ----------------------------------------------------------------------------
+
+set(SURFACE_TARGET_NAME triengine_ipc_surface)
+
+add_library(${SURFACE_TARGET_NAME} STATIC)
+add_library(Triengine::ipc_surface ALIAS ${SURFACE_TARGET_NAME})
+
+target_sources(${SURFACE_TARGET_NAME}
+    PRIVATE
+        "src/surface/shared_surface_consumer.cc"
+        "src/surface/shared_surface_provider.cc"
+        "src/logger.hh"
+        "include/triengine_ipc/surface/shared_surface_consumer.hh"
+        "include/triengine_ipc/surface/shared_surface_provider.hh"
+        "include/triengine_ipc/surface/surface_source.hh"
+        "include/triengine_ipc/surface/detail/unique_handle.hh"
+)
+
+target_compile_features(${SURFACE_TARGET_NAME} PUBLIC cxx_std_17)
+
+# Boost/fmt are PRIVATE in the body, so the surface target links fmt itself for
+# its internal logging. d3d11/dxgi/d3dcompiler are PRIVATE: needed by the
+# consumer translation unit but never exposed through a public header.
+target_link_libraries(${SURFACE_TARGET_NAME}
+    PUBLIC
+        ${TARGET_NAME}        # Triengine::ipc (proto/transport)
+    PRIVATE
+        d3d11
+        dxgi
+        d3dcompiler
+        fmt::fmt
+)
+
+# Same warning policy/rationale as the body (Flutter links with warnings-as-errors).
+if (MSVC)
+    target_compile_options(${SURFACE_TARGET_NAME} PRIVATE /W4)
+else()
+    target_compile_options(${SURFACE_TARGET_NAME} PRIVATE -Wall -Wextra -Wpedantic)
 endif()
