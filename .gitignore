@@ -1,0 +1,19 @@
+﻿# Build / CMake output
+/build/
+/out/
+/_deps/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.cmake.stamp
+
+# IDE / editor
+/.vs/
+/.vscode/
+/.idea/
+*.user
+/*.local.*
+
+# OS
+Thumbs.db
+.DS_Store
