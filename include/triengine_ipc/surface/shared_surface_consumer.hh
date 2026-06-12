@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <Windows.h>
 #include <d3d11_2.h> // DX11.2 API header (ID3D11Device2 / ID3D11DeviceContext2 / RTV / viewport)
 
@@ -24,8 +24,8 @@ namespace triengine::ipc::surface
     //
     // The consumer is present-target-agnostic: it does not own a swap chain or an
     // exported texture. The caller creates its own present target (a swap-chain
-    // back buffer, an exported render texture, etc.) on `device()` and passes that
-    // target's RTV to `blit()`. This is what lets the same consumer serve both the
+    // back buffer, an exported render texture, etc.) on `get_dx11_device()` and passes that
+    // target's RTV to `blit_to_render_target()`. This is what lets the same consumer serve both the
     // ex04 viewer (swap chain) and the Flutter plugin (exported render texture).
     class shared_surface_consumer
     {
@@ -36,15 +36,22 @@ namespace triengine::ipc::surface
         shared_surface_consumer(const shared_surface_consumer&) = delete;
         shared_surface_consumer& operator=(const shared_surface_consumer&) = delete;
 
+        // Exposed so the caller can build its own present target on the same device.
+        ID3D11Device2* get_dx11_device() const noexcept;
+        ID3D11DeviceContext2* get_dx11_context() const noexcept;
+        int32_t get_width() const noexcept;
+        int32_t get_height() const noexcept;
+
         bool is_created() const noexcept;
 
         // Perform the init handshake on a connected client, then create the D3D11
         // device, open the shared surface, and build the blit pipeline.
         bool create(
             ipc_client& cli,
-            int32_t width,
-            int32_t height,
-            const consumer_config& config = {});
+            int32_t initial_width,
+            int32_t initial_height,
+            const consumer_config& config = {}
+        );
 
         void destroy();
 
@@ -55,21 +62,15 @@ namespace triengine::ipc::surface
         bool sync_latest_frame(uint32_t timeout_ms = 1);
 
         // Blit the private copy onto the caller-provided render target.
-        void blit(ID3D11RenderTargetView* target, const D3D11_VIEWPORT& viewport);
+        void blit_to_render_target(ID3D11RenderTargetView* target_rtv, const D3D11_VIEWPORT& viewport);
 
         // Request a renderer resize and recreate the shared-surface side resources.
         // The caller is responsible for recreating its own present target.
-        bool resize(ipc_client& cli, int32_t width, int32_t height);
-
-        // Exposed so the caller can build its own present target on the same device.
-        ID3D11Device2* device() const noexcept;
-        ID3D11DeviceContext2* context() const noexcept;
-        int32_t width() const noexcept;
-        int32_t height() const noexcept;
+        bool resize(ipc_client& cli, int32_t new_width, int32_t new_height);
 
     private:
         class impl;
-        std::unique_ptr<impl> _impl;
+        std::unique_ptr<impl> _imp;
     };
 
 } // namespace triengine::ipc::surface

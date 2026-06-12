@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <Windows.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
@@ -6,19 +6,9 @@
 #include <cstdint>
 #include <utility>
 
-// Internal logging for triengine_ipc.
-//
-// triengine_ipc has no external logging dependency: log records are formatted with
-// fmt and emitted via OutputDebugStringA (viewable in DebugView / the debugger output
-// window), mirroring the approach used by the Flutter interop plugin.
-//
-// This header is private to the library build (lives under src/, not the public
-// include tree). Consumers never see it.
-
 namespace triengine::ipc::detail
 {
-    enum class log_level
-    {
+    enum class log_level {
         trace,
         debug,
         info,
@@ -26,8 +16,7 @@ namespace triengine::ipc::detail
         error,
     };
 
-    constexpr std::string_view log_level_to_string(log_level lv) noexcept
-    {
+    constexpr std::string_view log_level_to_string(log_level lv) noexcept {
         switch (lv) {
         case log_level::trace: return "TRACE";
         case log_level::debug: return "DEBUG";
@@ -38,29 +27,55 @@ namespace triengine::ipc::detail
         }
     }
 
-    struct source_loc
-    {
-        std::string_view file;
-        int line{ 0 };
-    };
+    // `std::source_location`(since C++20) like object
+    class source_loc {
+    public:
+        std::string_view filepath;
+        int line{};
+        std::string_view funcname;
 
-    inline std::string_view filename_only(std::string_view path) noexcept
-    {
-        const auto pos = path.find_last_of("/\\");
-        return (pos == std::string_view::npos) ? path : path.substr(pos + 1);
-    }
+    public:
+        constexpr source_loc() = default;
+
+        template <std::size_t N, std::size_t M>
+        constexpr source_loc(const char(&filepath_)[N], int line_, const char(&funcname_)[M])
+            : filepath{ filepath_, N - 1 }
+            , line{ line_ }
+            , funcname{ funcname_, M - 1 }
+        {}
+
+        constexpr source_loc(
+            const std::string_view filepath_,
+            int line_,
+            const std::string_view funcname_)
+            : filepath{ filepath_ }
+            , line{ line_ }
+            , funcname{ funcname_ }
+        {}
+
+        constexpr bool empty() const noexcept {
+            return filepath.empty();
+        }
+
+        constexpr std::string_view filename() const {
+            const auto pos = filepath.find_last_of("/\\");
+            return (pos != std::string_view::npos)
+                ? filepath.substr(pos + 1) // split filename
+                : filepath; // if no path separator is found, the whole filepath is the filename
+        }
+    };
 
     inline void emit_log(log_level lv, const source_loc& loc, std::string_view message)
     {
         const uint32_t thread_id = static_cast<uint32_t>(::GetCurrentThreadId());
-        const std::string output = fmt::format("(triengine_ipc) | {} | TID {} | {}:{} | {}\n"
+        const std::string log = fmt::format("(triengine_ipc) | {} | TID {} | {}:{} | {}\n"
             , log_level_to_string(lv)
             , thread_id
-            , filename_only(loc.file)
+            , loc.filename()
             , loc.line
             , message
         );
-        ::OutputDebugStringA(output.c_str());
+        ::OutputDebugStringA(log.c_str());
     }
 
     template <typename... Args>
@@ -75,7 +90,7 @@ namespace triengine::ipc::detail
 
 } // namespace triengine::ipc::detail
 
-#define _TEIPC_SRC_LOC() ::triengine::ipc::detail::source_loc{ __FILE__, __LINE__ }
+#define _TEIPC_SRC_LOC() ::triengine::ipc::detail::source_loc{ __FILE__, __LINE__, __func__ }
 
 #define TEIPC_TRACE(...) ::triengine::ipc::detail::log_message(::triengine::ipc::detail::log_level::trace, _TEIPC_SRC_LOC(), __VA_ARGS__)
 #define TEIPC_DEBUG(...) ::triengine::ipc::detail::log_message(::triengine::ipc::detail::log_level::debug, _TEIPC_SRC_LOC(), __VA_ARGS__)

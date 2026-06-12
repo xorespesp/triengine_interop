@@ -1,4 +1,4 @@
-#include <triengine_ipc/surface/shared_surface_provider.hh>
+﻿#include <triengine_ipc/surface/shared_surface_provider.hh>
 #include <triengine_ipc/proto/ipc_proto.hh>
 
 #include "../logger.hh"
@@ -33,8 +33,7 @@ namespace triengine::ipc::surface
 
     shared_surface_provider::shared_surface_provider(surface_source src)
         : _src{ std::move(src) }
-    {
-    }
+    {}
 
     shared_surface_provider::~shared_surface_provider() = default;
 
@@ -66,7 +65,11 @@ namespace triengine::ipc::surface
                             , proto::PROTO_VERSION
                         );
                         build_init_response(rep_pck_data,
-                            proto::packets::init_status::version_mismatch, 0, LUID{}, nullptr);
+                            proto::packets::init_status::version_mismatch, 
+                            0, 
+                            LUID{}, 
+                            nullptr
+                        );
                         return;
                     }
 
@@ -75,8 +78,7 @@ namespace triengine::ipc::surface
                     bool ok = false;
                     try {
                         ok = _src.initialize && _src.initialize(body->frame_width, body->frame_height);
-                    }
-                    catch (const std::exception& e) {
+                    } catch (const std::exception& e) {
                         TEIPC_ERROR("renderer initialization failed: {}", e.what());
                         ok = false;
                     }
@@ -84,7 +86,11 @@ namespace triengine::ipc::surface
                     if (!ok) {
                         TEIPC_ERROR("renderer initialization failed");
                         build_init_response(rep_pck_data,
-                            proto::packets::init_status::internal_error, 0, LUID{}, nullptr);
+                            proto::packets::init_status::internal_error, 
+                            0, 
+                            LUID{}, 
+                            nullptr
+                        );
                         return;
                     }
 
@@ -92,7 +98,8 @@ namespace triengine::ipc::surface
                         proto::packets::init_status::ok,
                         ::GetCurrentProcessId(),
                         _src.adapter_luid ? _src.adapter_luid() : LUID{},
-                        _src.surface_handle ? _src.surface_handle() : nullptr);
+                        _src.surface_handle ? _src.surface_handle() : nullptr
+                    );
                     break;
                 }
                 case proto::packet_type::frame_resize_request:
@@ -108,8 +115,7 @@ namespace triengine::ipc::surface
                     HANDLE new_surface_handle = nullptr;
                     try {
                         new_surface_handle = _src.resize ? _src.resize(body->width, body->height) : nullptr;
-                    }
-                    catch (const std::exception& e) {
+                    } catch (const std::exception& e) {
                         TEIPC_ERROR("frame resize failed: {}", e.what());
                         new_surface_handle = nullptr;
                     }
