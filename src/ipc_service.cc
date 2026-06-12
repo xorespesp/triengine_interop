@@ -1,4 +1,4 @@
-#include <triengine_ipc/transport/ipc_service.hh>
+﻿#include <triengine_ipc/transport/ipc_service.hh>
 
 #include <thread>
 #include <future>
@@ -373,6 +373,11 @@ bool ipc_session::is_alive() const noexcept
     return _is_alive;
 }
 
+bool ipc_session::is_recv_finished() const noexcept
+{
+    return _is_recv_done;
+}
+
 void ipc_session::start()
 {
     std::scoped_lock lk{ _session_lock };
@@ -666,6 +671,12 @@ void ipc_session::_do_recv()
         _cb_close(shared_from_this());
     }
 
+    // Mark the receive thread as finished AFTER the close callback and after this
+    // thread has dropped its own reference (the shared_from_this temporary above).
+    // The server reaps the session only once this is set, by which point the session's
+    // sole owner is the server's map, so destruction happens on the server's thread.
+    _is_recv_done = true;
+
     TEIPC_TRACE("IPC session recv terminated.");
 }
 
@@ -784,6 +795,22 @@ void ipc_server::_do_accept()
 {
     while (_is_listening)
     {
+        // Reap sessions whose receive thread has finished. Erasing here, on the accept
+        // thread, destroys them off their own receive thread, so ~ipc_session joins
+        // that (already finished) thread cross-thread instead of self-joining. This
+        // runs every accept iteration (the receive below has a 100ms timeout), so dead
+        // sessions are cleaned up promptly and the session slot is freed for reconnect.
+        {
+            std::scoped_lock sessions_lk{ _ctx->sessions_mutex };
+            for (auto it = _ctx->sessions.begin(); it != _ctx->sessions.end(); ) {
+                if (it->second->is_recv_finished()) {
+                    it = _ctx->sessions.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
         detail::handshake_req_mq req_pck{};
         unsigned int priority{};
         boost_ipc::message_queue::size_type recvd_size{};
@@ -816,27 +843,23 @@ void ipc_server::_do_accept()
                 std::make_unique<detail::ipc_session_base>(detail::ipc_session_base::mode_type::create, new_session_name, _ctx->shm),
                 [weak_self = std::weak_ptr{ shared_from_this() }](std::shared_ptr<ipc_session> session)
                 {
-                    const std::string session_name{ session->get_name() };
-                    TEIPC_INFO("Session {} closed. Removing from server.", session_name);
+                    TEIPC_INFO("Session {} closed.", session->get_name());
 
                     auto self = weak_self.lock();
                     if (!self) {
-                        TEIPC_WARN("Server instance no longer exists, cannot remove session.");
                         return;
                     }
 
-                    std::unique_lock ctx_lk{ self->_ctx_lock };
-                    if (self->_ctx)
-                    {
-                        std::unique_lock sessions_lk{ self->_ctx->sessions_mutex };
-                        self->_ctx->sessions.erase(session_name);
-
-                        // Unlock the lock before invoking the callback to avoid deadlock
-                        sessions_lk.unlock();
-                        ctx_lk.unlock();
-
-                        // Call the disconnect callback only if the session is 
-                        // NOT forcibly terminated by an explicit `stop()` call on the server side.
+                    // Notify promptly, here on the session's receive thread, so the
+                    // consumer can react immediately. The session is NOT removed from
+                    // the server here; the accept loop reaps it once its receive thread
+                    // has finished, so it is never destroyed on its own receive thread.
+                    //
+                    // Skip the notification when the server is no longer listening (an
+                    // explicit stop() is tearing sessions down), matching the previous
+                    // behavior.
+                    const bool is_server_stopped = !self->_is_listening;
+                    if (!is_server_stopped) {
                         auto session_disconn_cb = self->_on_session_disconnect;
                         if (session_disconn_cb) {
                             session_disconn_cb(session);

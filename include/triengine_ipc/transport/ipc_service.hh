@@ -51,6 +51,11 @@ namespace triengine::ipc
 
         bool is_alive() const noexcept;
 
+        // True once the receive thread has fully exited. The server uses this to reap
+        // the session from a thread other than the receive thread (so the session is
+        // never destroyed on the thread its destructor joins).
+        bool is_recv_finished() const noexcept;
+
         void start();
         void close();
 
@@ -79,6 +84,7 @@ namespace triengine::ipc
         const std::unique_ptr<detail::ipc_session_base> _base;
         std::unique_ptr<session_state_t> _state;
         std::atomic_bool _is_alive{ false };
+        std::atomic_bool _is_recv_done{ false };
         std::thread _recv_thread;
 
         notify_packet_callback _cb_notify_pck;

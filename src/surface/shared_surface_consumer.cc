@@ -522,8 +522,8 @@ namespace triengine::ipc::surface
                 sharedTexCopyDesc.SampleDesc.Quality = 0;
                 sharedTexCopyDesc.Usage = D3D11_USAGE_DEFAULT;
                 sharedTexCopyDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-                sharedTexCopyDesc.CPUAccessFlags = 0;
-                sharedTexCopyDesc.MiscFlags = 0;
+                sharedTexCopyDesc.CPUAccessFlags = 0; // No cpu access
+                sharedTexCopyDesc.MiscFlags = 0; // No misc flags
                 if (FAILED(device->CreateTexture2D(&sharedTexCopyDesc, nullptr, &out->copy_tex))) {
                     TEIPC_ERROR("Failed to create shared texture copy");
                     return nullptr;

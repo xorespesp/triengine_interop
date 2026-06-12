@@ -94,11 +94,12 @@ endif()
 # Surface toolkit target (Triengine::ipc_surface)
 #
 # A second library, layered on top of the transport/proto body, that holds the
-# DX11 shared-surface interop shared by inter-process viewer clients
-# (shared_surface_consumer) and the server-side handshake glue used by renderer
-# servers (shared_surface_provider). It depends on the body PUBLIC and on the
-# DirectX libraries PRIVATE, so the body itself stays free of any graphics
-# dependency; only consumers that need surface sharing link this target.
+# DX11 shared-surface interop: client-side endpoints that consume a renderer's
+# shared surface (shared_surface_consumer / shared_surface_client) and a
+# server-side endpoint that serves the surface handshake (shared_surface_server).
+# It depends on the body PUBLIC and on the DirectX libraries PRIVATE, so the body
+# itself stays free of any graphics dependency; only consumers that need surface
+# sharing link this target.
 # ----------------------------------------------------------------------------
 
 set(SURFACE_TARGET_NAME triengine_ipc_surface)
@@ -109,11 +110,12 @@ add_library(Triengine::ipc_surface ALIAS ${SURFACE_TARGET_NAME})
 target_sources(${SURFACE_TARGET_NAME}
     PRIVATE
         "src/surface/shared_surface_consumer.cc"
-        "src/surface/shared_surface_provider.cc"
+        "src/surface/shared_surface_server.cc"
+        "src/surface/shared_surface_client.cc"
         "src/logger.hh"
         "include/triengine_ipc/surface/shared_surface_consumer.hh"
-        "include/triengine_ipc/surface/shared_surface_provider.hh"
-        "include/triengine_ipc/surface/surface_source.hh"
+        "include/triengine_ipc/surface/shared_surface_server.hh"
+        "include/triengine_ipc/surface/shared_surface_client.hh"
         "include/triengine_ipc/surface/detail/unique_handle.hh"
 )
 
