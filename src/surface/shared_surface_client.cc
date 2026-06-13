@@ -6,7 +6,7 @@
 
 namespace triengine_interop::surface
 {
-    namespace proto = triengine_interop::proto;
+    using transport::ipc_client;
 
     shared_surface_client::shared_surface_client() = default;
 

@@ -61,8 +61,7 @@ target_sources(${TARGET_NAME}
         "include/triengine_interop/transport/ipc_session.hh"
         "include/triengine_interop/transport/ipc_server.hh"
         "include/triengine_interop/transport/ipc_client.hh"
-        "include/triengine_interop/proto/ipc_proto.hh"
-        "include/triengine_interop/proto/input_events.hh"
+        "include/triengine_interop/transport/ipc_packet.hh"
         "include/triengine_interop/utility/bit.hh"
         "include/triengine_interop/utility/logger.hh"
 )
@@ -125,6 +124,7 @@ target_sources(${SURFACE_TARGET_NAME}
         "src/surface/shared_surface_server.cc"
         "src/surface/shared_surface_client.cc"
         "include/triengine_interop/surface/detail/shared_surface_consumer.hh"
+        "include/triengine_interop/surface/proto/surface_proto.hh"
         "include/triengine_interop/surface/surface_render_options.hh"
         "include/triengine_interop/surface/shared_surface_server.hh"
         "include/triengine_interop/surface/shared_surface_client.hh"

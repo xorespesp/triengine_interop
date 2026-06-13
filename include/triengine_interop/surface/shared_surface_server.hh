@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include <Windows.h>
 #include <triengine_interop/transport/ipc_server.hh>
-#include <triengine_interop/proto/ipc_proto.hh>
+#include <triengine_interop/surface/proto/surface_proto.hh>
 
 #include <memory>
 #include <string_view>
@@ -82,7 +82,7 @@ namespace triengine_interop::surface
         void stop();
 
     private:
-        std::shared_ptr<ipc_server> _server;
+        std::shared_ptr<transport::ipc_server> _server;
         std::shared_ptr<session_interface> _iface;
     };
 

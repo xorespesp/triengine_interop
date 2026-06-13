@@ -2,8 +2,7 @@
 #include <triengine_interop/transport/ipc_client.hh>
 #include <triengine_interop/surface/detail/shared_surface_consumer.hh>
 #include <triengine_interop/surface/surface_render_options.hh>
-#include <triengine_interop/proto/ipc_proto.hh>
-#include <triengine_interop/proto/input_events.hh>
+#include <triengine_interop/surface/proto/surface_proto.hh>
 
 #include <functional>
 #include <memory>
@@ -100,7 +99,7 @@ namespace triengine_interop::surface
         void set_disconnect_callback(std::function<void()> cb);
 
     private:
-        std::shared_ptr<ipc_client> _client;
+        std::shared_ptr<transport::ipc_client> _client;
         detail::shared_surface_consumer _consumer;
         std::function<void()> _on_disconnect;
     };

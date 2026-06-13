@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <cstddef>
 
-namespace triengine_interop
+namespace triengine_interop::transport
 {
     class ipc_server : public std::enable_shared_from_this<ipc_server>
     {
@@ -71,4 +71,4 @@ namespace triengine_interop
         session_disconnect_callback _on_session_disconnect;
     };
 
-} // namespace triengine_interop
+} // namespace triengine_interop::transport

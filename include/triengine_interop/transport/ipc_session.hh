@@ -12,7 +12,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace triengine_interop
+namespace triengine_interop::transport
 {
     using namespace std::chrono_literals;
 
@@ -106,4 +106,4 @@ namespace triengine_interop
         close_callback _cb_close;
     };
 
-} // namespace triengine_interop
+} // namespace triengine_interop::transport

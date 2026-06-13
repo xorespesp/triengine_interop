@@ -42,7 +42,7 @@ namespace triengine_interop::surface::detail
         // Perform the init handshake on a connected client, then create the D3D11
         // device, open the shared surface, and build the blit pipeline.
         bool create(
-            ipc_client& cli,
+            transport::ipc_client& cli,
             int32_t initial_width,
             int32_t initial_height,
             const surface_render_options& config = {}
@@ -61,7 +61,7 @@ namespace triengine_interop::surface::detail
 
         // Request a renderer resize and recreate the shared-surface side resources.
         // The caller is responsible for recreating its own present target.
-        bool resize(ipc_client& cli, int32_t new_width, int32_t new_height);
+        bool resize(transport::ipc_client& cli, int32_t new_width, int32_t new_height);
 
     private:
         class impl;

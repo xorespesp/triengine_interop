@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace triengine_interop
+namespace triengine_interop::transport
 {
     using namespace std::chrono_literals;
 
@@ -70,4 +70,4 @@ namespace triengine_interop
         disconnect_callback _on_disconnect;
     };
 
-} // namespace triengine_interop
+} // namespace triengine_interop::transport

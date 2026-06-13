@@ -1,6 +1,7 @@
 ﻿#include <triengine_interop/surface/detail/shared_surface_consumer.hh>
 #include "unique_handle.hh"
-#include <triengine_interop/proto/ipc_proto.hh>
+#include <triengine_interop/surface/proto/surface_proto.hh>
+#include <triengine_interop/transport/ipc_packet.hh>
 
 #include <triengine_interop/utility/logger.hh>
 
@@ -18,8 +19,11 @@
 
 namespace triengine_interop::surface::detail
 {
-    namespace proto = triengine_interop::proto;
     using Microsoft::WRL::ComPtr;
+
+    using transport::ipc_client;
+    using transport::packet_builder;
+    using transport::packet_view;
 
     namespace
     {
@@ -551,7 +555,7 @@ namespace triengine_interop::surface::detail
             proto::packets::init_response_t& out)
         {
             // 초기화 요청 전송
-            packet_builder<proto::packets::init_request_t> req{ proto::packet_type::init_request };
+            packet_builder<proto::packets::init_request_t> req{ static_cast<uint32_t>(proto::packet_type::init_request) };
             req.body()->magic = proto::PROTO_MAGIC;
             req.body()->proto_version = proto::PROTO_VERSION;
             req.body()->frame_width = initial_width;
@@ -589,7 +593,7 @@ namespace triengine_interop::surface::detail
             const int32_t new_height, 
             HANDLE& out_surface_handle)
         {
-            packet_builder<proto::packets::frame_resize_request_t> req{ proto::packet_type::frame_resize_request };
+            packet_builder<proto::packets::frame_resize_request_t> req{ static_cast<uint32_t>(proto::packet_type::frame_resize_request) };
             req.body()->width = new_width;
             req.body()->height = new_height;
 

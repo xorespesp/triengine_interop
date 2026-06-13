@@ -1,5 +1,6 @@
 ﻿#include <triengine_interop/surface/shared_surface_server.hh>
-#include <triengine_interop/proto/ipc_proto.hh>
+#include <triengine_interop/surface/proto/surface_proto.hh>
+#include <triengine_interop/transport/ipc_packet.hh>
 
 #include <triengine_interop/utility/logger.hh>
 
@@ -11,7 +12,10 @@
 
 namespace triengine_interop::surface
 {
-    namespace proto = triengine_interop::proto;
+    using transport::ipc_server;
+    using transport::ipc_session;
+    using transport::packet_builder;
+    using transport::packet_view;
 
     namespace
     {
@@ -24,7 +28,7 @@ namespace triengine_interop::surface
             LUID adapter_luid,
             HANDLE surface_handle)
         {
-            packet_builder<proto::packets::init_response_t> pck{ proto::packet_type::init_response };
+            packet_builder<proto::packets::init_response_t> pck{ static_cast<uint32_t>(proto::packet_type::init_response) };
             pck.body()->status = status;
             pck.body()->renderer_process_id = renderer_process_id;
             pck.body()->target_adapter_luid = adapter_luid;
@@ -44,7 +48,7 @@ namespace triengine_interop::surface
                 {
                     packet_view pck{ req_pck_data.data(), req_pck_data.size() };
 
-                    switch (pck.type()) {
+                    switch (static_cast<proto::packet_type>(pck.type())) {
                     case proto::packet_type::init_request:
                     {
                         const auto* body = pck.body<proto::packets::init_request_t>();
@@ -124,7 +128,7 @@ namespace triengine_interop::surface
                             return;
                         }
 
-                        packet_builder<proto::packets::frame_resize_response_t> rep_pck{ proto::packet_type::frame_resize_response };
+                        packet_builder<proto::packets::frame_resize_response_t> rep_pck{ static_cast<uint32_t>(proto::packet_type::frame_resize_response) };
                         rep_pck.body()->surface_handle = new_surface_handle;
                         rep_pck_data.assign(rep_pck.data(), rep_pck.data() + rep_pck.size());
                         break;
@@ -145,7 +149,7 @@ namespace triengine_interop::surface
                 {
                     packet_view pck{ data.data(), data.size() };
 
-                    switch (pck.type()) {
+                    switch (static_cast<proto::packet_type>(pck.type())) {
                     case proto::packet_type::mouse_button_event:
                     {
                         const auto* body = pck.body<proto::packets::mouse_button_event_t>();

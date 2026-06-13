@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <optional>
 #include <chrono>
@@ -20,12 +20,10 @@
 
 namespace boost_ipc = boost::interprocess;
 
-namespace triengine_interop
+namespace triengine_interop::transport::detail
 {
     using namespace std::chrono_literals;
 
-namespace detail
-{
     using shm_segment_manager = boost_ipc::managed_shared_memory::segment_manager;
 
     template<typename T>
@@ -163,9 +161,9 @@ namespace detail
     }
 
     /**
-     * @class ipc_session_base
-     * @brief A class that encapsulates Boost.Interprocess resources (shared memory, message queue).
-     */
+        * @class ipc_session_base
+        * @brief A class that encapsulates Boost.Interprocess resources (shared memory, message queue).
+        */
     class ipc_session_base
     {
     private:
@@ -357,6 +355,4 @@ namespace detail
         std::unique_ptr<boost_ipc::message_queue> _mq_s2c; // server -> client queue
     };
 
-} // namespace detail
-
-} // namespace triengine_interop
+} // namespace triengine_interop::transport::detail
