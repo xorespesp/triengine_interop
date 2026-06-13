@@ -495,6 +495,7 @@ std::errc ipc_session::send_notify(
     {
         TEIPC_ERROR("failed to send notify");
         this->request_close();
+        return std::errc::io_error;
     }
 
     return std::errc{};
@@ -546,7 +547,7 @@ std::errc ipc_session::send_request_sync(
             }
 
             this->request_close();
-            return std::errc::not_connected;
+            return std::errc::io_error;
         }
     }
 
