@@ -78,7 +78,7 @@ namespace triengine::ipc::surface
         std::errc send_notify(const void* payload, size_t size);
 
         // Typed input helpers built on the proto packet builders.
-        std::errc send_mouse_button(
+        std::errc send_mouse_button_event(
             int32_t x,
             int32_t y,
             proto::mouse_button_type button,
@@ -86,13 +86,13 @@ namespace triengine::ipc::surface
             proto::modifier_button_type mods
         );
 
-        std::errc send_mouse_move(
+        std::errc send_mouse_move_event(
             int32_t x,
             int32_t y,
             proto::modifier_button_type mods
         );
 
-        std::errc send_mouse_scroll(float yoffset);
+        std::errc send_mouse_scroll_event(float yoffset);
 
         // Notified when the renderer process disconnects. May be set before connect();
         // it is applied to the connection as soon as it is established.

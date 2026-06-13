@@ -5,6 +5,7 @@
 #include <atomic>
 #include <unordered_map>
 #include <cassert>
+#include <stdexcept>
 
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
@@ -438,13 +439,17 @@ void ipc_session::request_close() noexcept
 
 void ipc_session::set_notify_callback(notify_packet_callback cb)
 {
-    std::scoped_lock lk{ _session_lock };
+    if (_is_alive) {
+        throw std::logic_error{ "set_notify_callback must be called before start()" };
+    }
     _cb_notify_pck = std::move(cb);
 }
 
 void ipc_session::set_request_callback(request_packet_callback cb)
 {
-    std::scoped_lock lk{ _session_lock };
+    if (_is_alive) {
+        throw std::logic_error{ "set_request_callback must be called before start()" };
+    }
     _cb_req_pck = std::move(cb);
 }
 
@@ -561,7 +566,21 @@ std::errc ipc_session::send_request_sync(
         }
     }
 
-    response = req_future.get();
+    // Reaching here means the request was not turned into a timeout above, which happens
+    // when `wait_for` returned ready, or it expired but the receive thread had already
+    // removed this request from `req_map` (the response arrived right at the deadline, or
+    // the session closed). In every such case the promise is already satisfied or about to
+    // be by the receive thread, so this get() returns almost immediately rather than
+    // blocking for another full timeout. A delivered response is returned as success
+    // instead of being discarded as a timeout.
+    try {
+        response = req_future.get();
+    } catch (const std::exception& e) {
+        // The promise was broken or set to an exception because the session closed (e.g.
+        // the peer disconnected) while waiting for the response.
+        TEIPC_WARN("request failed: {}", e.what());
+        return std::errc::not_connected;
+    }
     return std::errc{};
 }
 
@@ -605,7 +624,9 @@ void ipc_session::_do_recv()
         
         auto& recvd_pck = recvd_res.value();
 
-        // Process the received packet...
+        // Process the received packet. The notify/request callbacks below are read without
+        // a lock: this is safe because they are installed before start() and never change
+        // while this thread runs (see set_notify_callback / set_request_callback).
         if (recvd_pck.type() == detail::ipc_packet_type::heartbeat)
         {
             TEIPC_TRACE("session {}: update heartbeat", this->get_name());
@@ -680,6 +701,22 @@ void ipc_session::_do_recv()
         }
 
     } // while
+
+    // Fail any in-flight requests so their callers stop waiting for a response that can no
+    // longer arrive now that the receive loop has stopped, instead of blocking until each
+    // request's individual timeout elapses.
+    {
+        std::scoped_lock lk_req{ _state->req_map_lock };
+        for ([[maybe_unused]] auto& [pending_req_id, pending_req] : _state->req_map) {
+            try {
+                pending_req.set_exception(std::make_exception_ptr(std::runtime_error("session closed")));
+            } catch (const std::future_error&) {
+                // Entries still in req_map are unsatisfied, so this should not throw;
+                // swallow it regardless so one stray promise cannot abort the cleanup.
+            }
+        }
+        _state->req_map.clear();
+    }
 
     if (_cb_close) {
         _cb_close(shared_from_this());
@@ -1036,20 +1073,17 @@ void ipc_client::disconnect()
     }
 }
 
+// Stored here and applied to the session in connect(). A session's callbacks are fixed
+// once its receive thread starts, so changing these after connect() affects only the next
+// connection, not the current one.
 void ipc_client::set_notify_callback(notify_packet_callback cb) {
     std::scoped_lock ctx_lk{ _ctx_lock };
     _on_notify = std::move(cb);
-    if (_ctx && _ctx->session) {
-        _ctx->session->set_notify_callback(_on_notify);
-    }
 }
 
 void ipc_client::set_request_callback(request_packet_callback cb) {
     std::scoped_lock ctx_lk{ _ctx_lock };
     _on_request = std::move(cb);
-    if (_ctx && _ctx->session) {
-        _ctx->session->set_request_callback(_on_request);
-    }
 }
 
 void ipc_client::set_disconnect_callback(disconnect_callback cb) {
@@ -1061,13 +1095,19 @@ std::errc ipc_client::send_notify(
     const void* const payload, 
     const size_t payload_size)
 {
-    std::scoped_lock ctx_lk{ _ctx_lock };
-    if (!_ctx || !_ctx->session) {
-        return std::errc::not_connected;
+    // Take a reference to the session under the lock, then release the lock before the
+    // blocking call: holding _ctx_lock for the whole request (up to `timeout`) would stall
+    // disconnect(), is_connected() and the disconnect callback for that entire duration.
+    std::shared_ptr<ipc_session> session; {
+        std::scoped_lock ctx_lk{ _ctx_lock };
+        if (!_ctx || !_ctx->session) {
+            return std::errc::not_connected;
+        }
+        session = _ctx->session;
     }
 
-    return _ctx->session->send_notify(
-        payload, 
+    return session->send_notify(
+        payload,
         payload_size
     );
 }
@@ -1078,12 +1118,18 @@ std::errc ipc_client::send_request_sync(
     std::vector<uint8_t>& response,
     const std::chrono::milliseconds timeout)
 {
-    std::scoped_lock ctx_lk{ _ctx_lock };
-    if (!_ctx || !_ctx->session) {
-        return std::errc::not_connected;
+    // Take a reference to the session under the lock, then release the lock before the
+    // blocking call: holding _ctx_lock for the whole request (up to `timeout`) would stall
+    // disconnect(), is_connected() and the disconnect callback for that entire duration.
+    std::shared_ptr<ipc_session> session; {
+        std::scoped_lock ctx_lk{ _ctx_lock };
+        if (!_ctx || !_ctx->session) {
+            return std::errc::not_connected;
+        }
+        session = _ctx->session;
     }
 
-    return _ctx->session->send_request_sync(
+    return session->send_request_sync(
         payload,
         payload_size,
         response,

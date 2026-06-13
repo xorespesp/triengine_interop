@@ -119,7 +119,7 @@ namespace triengine::ipc::surface
         return _client->send_notify(payload, size);
     }
 
-    std::errc shared_surface_client::send_mouse_button(
+    std::errc shared_surface_client::send_mouse_button_event(
         const int32_t x,
         const int32_t y,
         const proto::mouse_button_type button,
@@ -130,7 +130,7 @@ namespace triengine::ipc::surface
         return this->send_notify(pck.data(), pck.size());
     }
 
-    std::errc shared_surface_client::send_mouse_move(
+    std::errc shared_surface_client::send_mouse_move_event(
         const int32_t x,
         const int32_t y,
         const proto::modifier_button_type mods)
@@ -139,7 +139,7 @@ namespace triengine::ipc::surface
         return this->send_notify(pck.data(), pck.size());
     }
 
-    std::errc shared_surface_client::send_mouse_scroll(float yoffset)
+    std::errc shared_surface_client::send_mouse_scroll_event(float yoffset)
     {
         const auto pck = proto::make_mouse_scroll_event(yoffset);
         return this->send_notify(pck.data(), pck.size());

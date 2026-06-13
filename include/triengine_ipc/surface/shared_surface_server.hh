@@ -66,7 +66,7 @@ namespace triengine::ipc::surface
 
             // Invoked once when the client disconnects.
             virtual void on_session_disconnect() = 0;
-        };
+        }; // class
 
         shared_surface_server();
         ~shared_surface_server();

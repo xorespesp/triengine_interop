@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <string_view>
 #include <unordered_map>
+#include <stdexcept>
 
 namespace triengine::ipc
 {
@@ -73,6 +74,8 @@ namespace triengine::ipc
         // also waits for the receive thread to finish, use close() (non-receive thread only).
         void request_close() noexcept;
 
+        // Install the packet handlers. MUST be called before start(): the receive thread
+        // reads them without locking, so they are immutable once it is running.
         void set_notify_callback(notify_packet_callback cb);
         void set_request_callback(request_packet_callback cb);
 
@@ -126,11 +129,20 @@ namespace triengine::ipc
         void start(std::string_view server_name, size_t max_sessions);
         void stop();
 
+        // Both MUST be set before start(): the accept and receive threads read them
+        // without locking, so they are immutable once the server is listening. Throws
+        // std::logic_error if called while the server is listening.
         void set_session_connect_callback(session_connect_callback cb) {
+            if (_is_listening) {
+                throw std::logic_error{ "set_session_connect_callback must be called before start()" };
+            }
             _on_session_connect = std::move(cb);
         }
 
         void set_session_disconnect_callback(session_disconnect_callback cb) {
+            if (_is_listening) {
+                throw std::logic_error{ "set_session_disconnect_callback must be called before start()" };
+            }
             _on_session_disconnect = std::move(cb);
         }
 
