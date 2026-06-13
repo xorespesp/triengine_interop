@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include <Windows.h>
-#include <triengine_ipc/transport/ipc_service.hh>
+#include <triengine_ipc/transport/ipc_server.hh>
 #include <triengine_ipc/proto/ipc_proto.hh>
 
 #include <memory>

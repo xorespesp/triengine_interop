@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <memory>
 
-#include <triengine_ipc/transport/ipc_service.hh>
+#include <triengine_ipc/transport/ipc_client.hh>
 
 namespace triengine::ipc::surface
 {

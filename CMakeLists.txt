@@ -53,9 +53,14 @@ add_library(Triengine::ipc ALIAS ${TARGET_NAME})
 
 target_sources(${TARGET_NAME}
     PRIVATE
-        "src/ipc_service.cc"
+        "src/ipc_session.cc"
+        "src/ipc_server.cc"
+        "src/ipc_client.cc"
+        "src/ipc_detail.hh"
         "src/logger.hh"
-        "include/triengine_ipc/transport/ipc_service.hh"
+        "include/triengine_ipc/transport/ipc_session.hh"
+        "include/triengine_ipc/transport/ipc_server.hh"
+        "include/triengine_ipc/transport/ipc_client.hh"
         "include/triengine_ipc/proto/ipc_proto.hh"
         "include/triengine_ipc/proto/input_events.hh"
         "include/triengine_ipc/detail/bit.hh"
@@ -69,7 +74,7 @@ target_include_directories(${TARGET_NAME} PUBLIC
 )
 
 # Boost (transport) and fmt (logging) are implementation details used only by
-# ipc_service.cc; no public header exposes them, so they are linked PRIVATE.
+# the transport sources; no public header exposes them, so they are linked PRIVATE.
 # triengine_ipc therefore pulls in no external utility dependency of its own
 # (in particular, no xutl), and a consumer that links `Triengine::ipc` needs
 # nothing else. For a STATIC library CMake still propagates these to the

@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include <triengine_ipc/transport/ipc_service.hh>
+#include <triengine_ipc/transport/ipc_client.hh>
 #include <triengine_ipc/surface/shared_surface_consumer.hh>
 #include <triengine_ipc/proto/ipc_proto.hh>
 #include <triengine_ipc/proto/input_events.hh>
