@@ -872,13 +872,17 @@ void ipc_server::stop()
 // NOTE: This function does NOT hold the context lock, be careful with synchronization.
 void ipc_server::_do_accept()
 {
-    while (_is_listening)
-    {
+    // Runs one iteration of the accept loop. May throw (boost IPC errors, thread creation);
+    // the loop below catches so a single failure does not kill the accept thread. The
+    // accepted session is published into the server's map only after it is fully brought up,
+    // so a bring-up that throws discards the session here and leaves no never-reaped slot
+    // holder.
+    auto accept_once = [this]() {
         // Reap sessions whose receive thread has finished. Erasing here, on the accept
-        // thread, destroys them off their own receive thread, so ~ipc_session joins
-        // that (already finished) thread cross-thread instead of self-joining. This
-        // runs every accept iteration (the receive below has a 100ms timeout), so dead
-        // sessions are cleaned up promptly and the session slot is freed for reconnect.
+        // thread, destroys them off their own receive thread, so ~ipc_session joins that
+        // (already finished) thread cross-thread instead of self-joining. This runs every
+        // accept iteration (the receive below has a 100ms timeout), so dead sessions are
+        // cleaned up promptly and the session slot is freed for reconnect.
         {
             std::scoped_lock sessions_lk{ _ctx->sessions_mutex };
             for (auto it = _ctx->sessions.begin(); it != _ctx->sessions.end(); ) {
@@ -900,11 +904,11 @@ void ipc_server::_do_accept()
             priority,
             boost::posix_time::second_clock::universal_time() + boost::posix_time::milliseconds(100)
         )) {
-            continue;
+            return; // no handshake request this iteration
         }
 
-        // Drop requests whose client already gave up (deadline passed) so we do not create
-        // a phantom session that no one will connect to.
+        // Drop requests whose client already gave up (deadline passed) so we do not create a
+        // phantom session that no one will connect to.
         //
         // The request queue has a single reader (this server's accept loop), so every
         // request received here is ours to handle. There is no wrong-recipient case like the
@@ -912,77 +916,77 @@ void ipc_server::_do_accept()
         // them: a dropped request has no other reader that still needs it.
         if (detail::system_now_unix_ns() > req_pck.deadline_unix_ns) {
             TEIPC_WARN("Stale handshake request dropped (client deadline already passed)");
-            continue;
+            return;
         }
 
-        std::shared_ptr<ipc_session> new_session;
-        std::string new_session_name;
-
+        // The accept thread is the only thread that adds sessions, and stop() joins it
+        // before touching the map, so the slot checked here stays free until we publish below.
         {
             std::scoped_lock sessions_lk{ _ctx->sessions_mutex };
             if (_ctx->sessions.size() >= _ctx->max_sessions) {
                 TEIPC_WARN("New session connection denied (maximum number of sessions reached)");
-                continue;
+                return;
             }
-
-            new_session_name = fmt::format("{}-session-{:X}",
-                _ctx->server_name,
-                static_cast<uint32_t>(++_ctx->next_session_id)
-            );
-
-            new_session = std::make_shared<ipc_session>(
-                std::make_unique<detail::ipc_session_base>(detail::ipc_session_base::mode_type::create, new_session_name, _ctx->shm),
-                [weak_self = std::weak_ptr{ shared_from_this() }](std::shared_ptr<ipc_session> session)
-                {
-                    TEIPC_INFO("Session {} closed.", session->get_name());
-
-                    auto self = weak_self.lock();
-                    if (!self) {
-                        return;
-                    }
-
-                    // Notify promptly, here on the session's receive thread, so the
-                    // consumer can react immediately. The session is NOT removed from
-                    // the server here; the accept loop reaps it once its receive thread
-                    // has finished, so it is never destroyed on its own receive thread.
-                    //
-                    // Skip the notification when the server is no longer listening (an
-                    // explicit stop() is tearing sessions down), matching the previous
-                    // behavior.
-                    const bool is_server_stopped = !self->_is_listening;
-                    if (!is_server_stopped) {
-                        auto session_disconn_cb = self->_on_session_disconnect;
-                        if (session_disconn_cb) {
-                            session_disconn_cb(session);
-                        }
-                    }
-                });
-
-            _ctx->sessions[new_session_name] = new_session;
         }
+
+        const std::string new_session_name = fmt::format("{}-session-{:X}",
+            _ctx->server_name,
+            static_cast<uint32_t>(++_ctx->next_session_id)
+        );
+
+        auto new_session = std::make_shared<ipc_session>(
+            std::make_unique<detail::ipc_session_base>(detail::ipc_session_base::mode_type::create, new_session_name, _ctx->shm),
+            [weak_self = std::weak_ptr{ shared_from_this() }](std::shared_ptr<ipc_session> session)
+            {
+                TEIPC_INFO("Session {} closed.", session->get_name());
+
+                auto self = weak_self.lock();
+                if (!self) {
+                    return;
+                }
+
+                // Notify promptly, here on the session's receive thread, so the consumer can
+                // react immediately. The session is NOT removed from the server here; the
+                // accept loop reaps it once its receive thread has finished, so it is never
+                // destroyed on its own receive thread.
+                //
+                // Skip the notification when the server is no longer listening (an explicit
+                // stop() is tearing sessions down), matching the previous behavior.
+                const bool is_server_stopped = !self->_is_listening;
+                if (!is_server_stopped) {
+                    auto session_disconn_cb = self->_on_session_disconnect;
+                    if (session_disconn_cb) {
+                        session_disconn_cb(session);
+                    }
+                }
+            });
 
         TEIPC_INFO("New session accepted! (name: {})", new_session_name);
 
-        // Instead of calling `ipc_session::start()` here, call it manually from the session connect callback.
-        //new_session->start();
-
+        // Bring the session up (the connect callback installs handlers and starts its
+        // receive thread). If this throws, new_session is discarded here and was never
+        // entered into the map, so a failed bring-up leaves nothing behind.
         if (_on_session_connect) {
             _on_session_connect(new_session);
         } else {
             TEIPC_WARN("No session connect callback set, cannot notify about new session.");
         }
 
-        // Send a handshake response(ACK) to the client
+        // Send a handshake response(ACK) to the client, echoing the nonce/deadline for reply
+        // correlation and stale filtering.
         {
             detail::handshake_rep_mq rep_pck{};
-            rep_pck.client_nonce = req_pck.client_nonce; // echo for reply correlation
-            rep_pck.deadline_unix_ns = req_pck.deadline_unix_ns; // echo for stale filtering
-            ::strncpy_s(
+            rep_pck.client_nonce = req_pck.client_nonce;
+            rep_pck.deadline_unix_ns = req_pck.deadline_unix_ns;
+            // Copy the session name into the fixed-size field, capping at the field's
+            // capacity and writing the null terminator after the copied bytes.
+            const auto name_end = fmt::format_to_n(
                 rep_pck.session_name,
-                sizeof(rep_pck.session_name),
-                new_session_name.c_str(),
-                new_session_name.size()
-            );
+                sizeof(rep_pck.session_name) - 1,
+                "{}",
+                new_session_name
+            ).out;
+            *name_end = '\0';
 
             _ctx->mq_handshake_s2c->send(
                 &rep_pck,
@@ -991,7 +995,26 @@ void ipc_server::_do_accept()
             );
         }
 
-    } // while
+        // Publish the now-running session so the reaper and stop() can manage it.
+        {
+            std::scoped_lock sessions_lk{ _ctx->sessions_mutex };
+            _ctx->sessions[new_session_name] = std::move(new_session);
+        }
+    };
+
+    while (_is_listening)
+    {
+        try {
+            accept_once();
+        } catch (const std::exception& e) {
+            // A handshake/queue error or a failed session bring-up must not take down the
+            // accept thread: an uncaught exception here would terminate the process. Log it
+            // and keep listening; the brief sleep avoids a tight error spin if the failure
+            // is persistent.
+            TEIPC_ERROR("accept loop iteration failed: {}", e.what());
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
