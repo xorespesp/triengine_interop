@@ -1,4 +1,4 @@
-# triengine_ipc
+﻿# triengine_interop
 #
 # Standalone library providing the inter-process communication transport and the
 # rendering wire-protocol used by Triengine's inter-process rendering (Windows).
@@ -6,9 +6,9 @@
 # (the ex04 example, the Flutter interop plugin) via FetchContent.
 
 cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
-project(triengine_ipc LANGUAGES CXX)
+project(triengine_interop LANGUAGES CXX)
 
-set(TARGET_NAME triengine_ipc)
+set(TARGET_NAME triengine_interop)
 
 include(FetchContent)
 
@@ -20,7 +20,7 @@ include(FetchContent)
 # ----------------------------------------------------------------------------
 
 if (NOT TARGET fmt)
-    message(STATUS "[triengine_ipc] Fetching fmt...")
+    message(STATUS "[triengine_interop] Fetching fmt...")
     FetchContent_Declare(
         fmt
         GIT_REPOSITORY https://github.com/fmtlib/fmt
@@ -33,7 +33,7 @@ if (NOT TARGET fmt)
 endif()
 
 if (NOT TARGET Boost::interprocess)
-    message(STATUS "[triengine_ipc] Fetching boost...")
+    message(STATUS "[triengine_interop] Fetching boost...")
     FetchContent_Declare(
         Boost
         URL "https://github.com/boostorg/boost/releases/download/boost-1.90.0/boost-1.90.0-cmake.7z" # downloading a zip release speeds up the download
@@ -49,7 +49,7 @@ endif()
 # ----------------------------------------------------------------------------
 
 add_library(${TARGET_NAME} STATIC)
-add_library(Triengine::ipc ALIAS ${TARGET_NAME})
+add_library(Triengine::interop ALIAS ${TARGET_NAME})
 
 target_sources(${TARGET_NAME}
     PRIVATE
@@ -58,13 +58,13 @@ target_sources(${TARGET_NAME}
         "src/transport/ipc_client.cc"
         "src/utility/logger.cc"
         "src/transport/detail/ipc_detail.hh"
-        "include/triengine_ipc/transport/ipc_session.hh"
-        "include/triengine_ipc/transport/ipc_server.hh"
-        "include/triengine_ipc/transport/ipc_client.hh"
-        "include/triengine_ipc/proto/ipc_proto.hh"
-        "include/triengine_ipc/proto/input_events.hh"
-        "include/triengine_ipc/utility/bit.hh"
-        "include/triengine_ipc/utility/logger.hh"
+        "include/triengine_interop/transport/ipc_session.hh"
+        "include/triengine_interop/transport/ipc_server.hh"
+        "include/triengine_interop/transport/ipc_client.hh"
+        "include/triengine_interop/proto/ipc_proto.hh"
+        "include/triengine_interop/proto/input_events.hh"
+        "include/triengine_interop/utility/bit.hh"
+        "include/triengine_interop/utility/logger.hh"
 )
 
 target_compile_features(${TARGET_NAME} PUBLIC cxx_std_17)
@@ -75,13 +75,13 @@ target_include_directories(${TARGET_NAME} PUBLIC
 )
 
 # fmt is exposed through a public header (the logging utility), so it is linked
-# PUBLIC: a consumer of `Triengine::ipc` needs fmt on its include/link path. fmt is
+# PUBLIC: a consumer of `Triengine::interop` needs fmt on its include/link path. fmt is
 # lightweight and consumers (e.g. the Flutter plugin) already depend on it directly,
 # so this is the deliberate minimal external dependency.
 #
 # Boost.Interprocess (transport) stays PRIVATE: it is used only by the internal
 # transport sources and no public header exposes it, so it is bundled and hidden.
-# The dependency contract is therefore "link `Triengine::ipc` + fmt; Boost and the
+# The dependency contract is therefore "link `Triengine::interop` + fmt; Boost and the
 # DirectX libraries are bundled and need not be linked by the consumer".
 target_link_libraries(${TARGET_NAME}
     PUBLIC
@@ -102,7 +102,7 @@ else()
 endif()
 
 # ----------------------------------------------------------------------------
-# Surface toolkit target (Triengine::ipc_surface)
+# Surface toolkit target (Triengine::interop_surface)
 #
 # A second library, layered on top of the transport/proto body, that holds the
 # DX11 shared-surface interop: client-side endpoints that consume a renderer's
@@ -113,21 +113,21 @@ endif()
 # sharing link this target.
 # ----------------------------------------------------------------------------
 
-set(SURFACE_TARGET_NAME triengine_ipc_surface)
+set(SURFACE_TARGET_NAME triengine_interop_surface)
 
 add_library(${SURFACE_TARGET_NAME} STATIC)
-add_library(Triengine::ipc_surface ALIAS ${SURFACE_TARGET_NAME})
+add_library(Triengine::interop_surface ALIAS ${SURFACE_TARGET_NAME})
 
 target_sources(${SURFACE_TARGET_NAME}
     PRIVATE
+        "src/surface/detail/unique_handle.hh"
         "src/surface/detail/shared_surface_consumer.cc"
         "src/surface/shared_surface_server.cc"
         "src/surface/shared_surface_client.cc"
-        "include/triengine_ipc/surface/detail/shared_surface_consumer.hh"
-        "include/triengine_ipc/surface/surface_render_options.hh"
-        "include/triengine_ipc/surface/shared_surface_server.hh"
-        "include/triengine_ipc/surface/shared_surface_client.hh"
-        "include/triengine_ipc/utility/unique_handle.hh"
+        "include/triengine_interop/surface/detail/shared_surface_consumer.hh"
+        "include/triengine_interop/surface/surface_render_options.hh"
+        "include/triengine_interop/surface/shared_surface_server.hh"
+        "include/triengine_interop/surface/shared_surface_client.hh"
 )
 
 target_compile_features(${SURFACE_TARGET_NAME} PUBLIC cxx_std_17)
@@ -137,7 +137,7 @@ target_compile_features(${SURFACE_TARGET_NAME} PUBLIC cxx_std_17)
 # consumer translation unit but never exposed through a public header.
 target_link_libraries(${SURFACE_TARGET_NAME}
     PUBLIC
-        ${TARGET_NAME}        # Triengine::ipc (proto/transport)
+        ${TARGET_NAME}        # Triengine::interop (proto/transport)
     PRIVATE
         d3d11
         dxgi

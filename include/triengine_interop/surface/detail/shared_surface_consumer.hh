@@ -5,10 +5,10 @@
 #include <cstdint>
 #include <memory>
 
-#include <triengine_ipc/transport/ipc_client.hh>
-#include <triengine_ipc/surface/surface_render_options.hh>
+#include <triengine_interop/transport/ipc_client.hh>
+#include <triengine_interop/surface/surface_render_options.hh>
 
-namespace triengine::ipc::surface::detail
+namespace triengine_interop::surface::detail
 {
     // Client-side consumer of a renderer process's shared DX11 surface.
     //
@@ -68,4 +68,4 @@ namespace triengine::ipc::surface::detail
         std::unique_ptr<impl> _imp;
     };
 
-} // namespace triengine::ipc::surface::detail
+} // namespace triengine_interop::surface::detail

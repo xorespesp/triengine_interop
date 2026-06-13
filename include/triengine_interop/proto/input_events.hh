@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdint>
-#include <triengine_ipc/proto/ipc_proto.hh>
+#include <triengine_interop/proto/ipc_proto.hh>
 
 // Inline builders for client-side input event packets.
 //
@@ -10,7 +10,7 @@
 // helpers: they touch only packet structs, with no transport or graphics
 // dependency, so they live in the header-only proto layer.
 
-namespace triengine::ipc::proto
+namespace triengine_interop::proto
 {
     inline packet_builder<packets::mouse_button_event_t> make_mouse_button_event(
         int32_t x,
@@ -47,4 +47,4 @@ namespace triengine::ipc::proto
         return pck;
     }
 
-} // namespace triengine::ipc::proto
+} // namespace triengine_interop::proto

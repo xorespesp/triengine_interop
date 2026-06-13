@@ -1,12 +1,12 @@
-﻿#include <triengine_ipc/surface/shared_surface_client.hh>
+﻿#include <triengine_interop/surface/shared_surface_client.hh>
 
-#include <triengine_ipc/utility/logger.hh>
+#include <triengine_interop/utility/logger.hh>
 
 #include <utility>
 
-namespace triengine::ipc::surface
+namespace triengine_interop::surface
 {
-    namespace proto = triengine::ipc::proto;
+    namespace proto = triengine_interop::proto;
 
     shared_surface_client::shared_surface_client() = default;
 
@@ -27,7 +27,7 @@ namespace triengine::ipc::surface
         const surface_render_options& config)
     {
         if (this->is_connected()) {
-            TEIPC_ERROR("client already connected");
+            TEIO_ERROR("client already connected");
             return false;
         }
 
@@ -37,12 +37,12 @@ namespace triengine::ipc::surface
         }
 
         if (!client->connect(server_name)) {
-            TEIPC_ERROR("failed to connect to server '{}'", server_name);
+            TEIO_ERROR("failed to connect to server '{}'", server_name);
             return false;
         }
 
         if (!_consumer.create(*client, initial_width, initial_height, config)) {
-            TEIPC_ERROR("failed to create shared surface consumer");
+            TEIO_ERROR("failed to create shared surface consumer");
             client->disconnect();
             return false;
         }
@@ -103,7 +103,7 @@ namespace triengine::ipc::surface
     bool shared_surface_client::resize(int32_t new_width, int32_t new_height)
     {
         if (!_client) {
-            TEIPC_ERROR("resize called before connect");
+            TEIO_ERROR("resize called before connect");
             return false;
         }
         return _consumer.resize(*_client, new_width, new_height);
@@ -153,4 +153,4 @@ namespace triengine::ipc::surface
         }
     }
 
-} // namespace triengine::ipc::surface
+} // namespace triengine_interop::surface

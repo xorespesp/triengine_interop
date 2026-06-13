@@ -5,7 +5,7 @@
 // Minimal RAII wrapper for a Win32 NT handle, kept dependency-free so the surface
 // toolkit owns its handle lifetime without pulling in any external utility library.
 
-namespace triengine::ipc::utility
+namespace triengine_interop::surface::detail
 {
     struct handle_deleter
     {

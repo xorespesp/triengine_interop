@@ -1,13 +1,13 @@
 ﻿#pragma once
 #include <Windows.h>
-#include <triengine_ipc/transport/ipc_server.hh>
-#include <triengine_ipc/proto/ipc_proto.hh>
+#include <triengine_interop/transport/ipc_server.hh>
+#include <triengine_interop/proto/ipc_proto.hh>
 
 #include <memory>
 #include <string_view>
 #include <cstdint>
 
-namespace triengine::ipc::surface
+namespace triengine_interop::surface
 {
     // Owns an IPC server and serves a single connected client: the shared-surface
     // init/resize handshake plus the delivery of decoded input events. Rendering is a
@@ -86,4 +86,4 @@ namespace triengine::ipc::surface
         std::shared_ptr<session_interface> _iface;
     };
 
-} // namespace triengine::ipc::surface
+} // namespace triengine_interop::surface

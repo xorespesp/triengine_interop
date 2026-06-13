@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace triengine::ipc
+namespace triengine_interop
 {
     using namespace std::chrono_literals;
 
@@ -70,4 +70,4 @@ namespace triengine::ipc
         disconnect_callback _on_disconnect;
     };
 
-} // namespace triengine::ipc
+} // namespace triengine_interop

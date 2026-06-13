@@ -1,4 +1,4 @@
-#include <triengine_ipc/utility/logger.hh>
+#include <triengine_interop/utility/logger.hh>
 
 #include <Windows.h>
 #include <fmt/format.h>
@@ -7,7 +7,7 @@
 #include <string_view>
 #include <cstdint>
 
-namespace triengine::ipc::utility
+namespace triengine_interop::utility
 {
     constexpr std::string_view log_level_to_string(log_level lv) noexcept {
         switch (lv) {
@@ -23,7 +23,7 @@ namespace triengine::ipc::utility
     void emit_log(log_level lv, const source_loc& loc, std::string_view message)
     {
         const uint32_t thread_id = static_cast<uint32_t>(::GetCurrentThreadId());
-        const std::string log = fmt::format("(triengine_ipc) | {} | TID {} | {}:{} | {}\n"
+        const std::string log = fmt::format("(triengine_interop) | {} | TID {} | {}:{} | {}\n"
             , log_level_to_string(lv)
             , thread_id
             , loc.filename()
@@ -33,4 +33,4 @@ namespace triengine::ipc::utility
         ::OutputDebugStringA(log.c_str());
     }
 
-} // namespace triengine::ipc::utility
+} // namespace triengine_interop::utility

@@ -1,7 +1,7 @@
-#include <triengine_ipc/transport/ipc_client.hh>
+#include <triengine_interop/transport/ipc_client.hh>
 
 #include "detail/ipc_detail.hh"
-#include <triengine_ipc/utility/logger.hh>
+#include <triengine_interop/utility/logger.hh>
 
 #include <thread>
 #include <chrono>
@@ -12,7 +12,7 @@
 #include <cstdio>
 #include <utility>
 
-namespace triengine::ipc
+namespace triengine_interop
 {
 
 struct ipc_client::context_t final
@@ -52,7 +52,7 @@ bool ipc_client::connect(
 {
     std::scoped_lock ctx_lk{ _ctx_lock };
     if (_ctx) {
-        TEIPC_ERROR("Already connected or connection in progress.");
+        TEIO_ERROR("Already connected or connection in progress.");
         return false;
     }
 
@@ -67,7 +67,7 @@ bool ipc_client::connect(
         mq_handshake_c2s = std::make_unique<boost_ipc::message_queue>(boost_ipc::open_only, c2s_handshake_mq_name.c_str());
         shm = std::make_shared<boost_ipc::managed_shared_memory>(boost_ipc::open_only, shm_name.c_str());
     } catch (const boost_ipc::interprocess_exception& e) {
-        TEIPC_ERROR("Failed to open server handshake resources: {}", e.what());
+        TEIO_ERROR("Failed to open server handshake resources: {}", e.what());
         return false;
     }
 
@@ -125,7 +125,7 @@ bool ipc_client::connect(
     }
 
     if (!got_response) {
-        TEIPC_ERROR("Handshake with server '{}' timed out.", server_name);
+        TEIO_ERROR("Handshake with server '{}' timed out.", server_name);
         return false;
     }
 
@@ -135,11 +135,11 @@ bool ipc_client::connect(
         std::make_unique<detail::ipc_session_base>(detail::ipc_session_base::mode_type::open, new_session_name, shm),
         [weak_self = std::weak_ptr{ shared_from_this() }]([[maybe_unused]] std::shared_ptr<ipc_session> session)
         {
-            TEIPC_INFO("Client disconnected!");
+            TEIO_INFO("Client disconnected!");
 
             auto self = weak_self.lock();
             if (!self) {
-                TEIPC_WARN("Client instance no longer exists, cannot handle disconnection.");
+                TEIO_WARN("Client instance no longer exists, cannot handle disconnection.");
                 return;
             }
 
@@ -161,7 +161,7 @@ bool ipc_client::connect(
     _ctx = std::move(new_ctx);
     _ctx->session->start();
 
-    TEIPC_INFO("Connected to server! (session name: {})", new_session_name);
+    TEIO_INFO("Connected to server! (session name: {})", new_session_name);
     return true;
 }
 
@@ -243,4 +243,4 @@ std::errc ipc_client::send_request_sync(
     );
 }
 
-} // namespace triengine::ipc
+} // namespace triengine_interop

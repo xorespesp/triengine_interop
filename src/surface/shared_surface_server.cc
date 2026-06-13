@@ -1,7 +1,7 @@
-﻿#include <triengine_ipc/surface/shared_surface_server.hh>
-#include <triengine_ipc/proto/ipc_proto.hh>
+﻿#include <triengine_interop/surface/shared_surface_server.hh>
+#include <triengine_interop/proto/ipc_proto.hh>
 
-#include <triengine_ipc/utility/logger.hh>
+#include <triengine_interop/utility/logger.hh>
 
 #include <utility>
 #include <vector>
@@ -9,9 +9,9 @@
 #include <exception>
 #include <cstdint>
 
-namespace triengine::ipc::surface
+namespace triengine_interop::surface
 {
-    namespace proto = triengine::ipc::proto;
+    namespace proto = triengine_interop::proto;
 
     namespace
     {
@@ -54,7 +54,7 @@ namespace triengine::ipc::surface
                             body->magic != proto::PROTO_MAGIC ||
                             body->proto_version != proto::PROTO_VERSION)
                         {
-                            TEIPC_ERROR("init request rejected: protocol mismatch "
+                            TEIO_ERROR("init request rejected: protocol mismatch "
                                 "(got magic=0x{:X}, version={}; expected magic=0x{:X}, version={})"
                                 , body ? body->magic : 0u
                                 , body ? body->proto_version : 0u
@@ -70,7 +70,7 @@ namespace triengine::ipc::surface
                             return;
                         }
 
-                        TEIPC_TRACE("init request: {}x{}", body->frame_width, body->frame_height);
+                        TEIO_TRACE("init request: {}x{}", body->frame_width, body->frame_height);
 
                         LUID adapter_luid{};
                         HANDLE surface_handle = nullptr;
@@ -78,12 +78,12 @@ namespace triengine::ipc::surface
                         try {
                             ok = iface.on_session_init(body->frame_width, body->frame_height, adapter_luid, surface_handle);
                         } catch (const std::exception& e) {
-                            TEIPC_ERROR("renderer initialization failed: {}", e.what());
+                            TEIO_ERROR("renderer initialization failed: {}", e.what());
                             ok = false;
                         }
 
                         if (!ok) {
-                            TEIPC_ERROR("renderer initialization failed");
+                            TEIO_ERROR("renderer initialization failed");
                             build_init_response(rep_pck_data,
                                 proto::packets::init_status::internal_error,
                                 0,
@@ -105,22 +105,22 @@ namespace triengine::ipc::surface
                     {
                         const auto* body = pck.body<proto::packets::frame_resize_request_t>();
                         if (!body) {
-                            TEIPC_WARN("malformed resize request");
+                            TEIO_WARN("malformed resize request");
                             return;
                         }
 
-                        TEIPC_TRACE("resize request: {}x{}", body->width, body->height);
+                        TEIO_TRACE("resize request: {}x{}", body->width, body->height);
 
                         HANDLE new_surface_handle = nullptr;
                         try {
                             new_surface_handle = iface.on_frame_resize_event(body->width, body->height);
                         } catch (const std::exception& e) {
-                            TEIPC_ERROR("frame resize failed: {}", e.what());
+                            TEIO_ERROR("frame resize failed: {}", e.what());
                             new_surface_handle = nullptr;
                         }
 
                         if (!new_surface_handle) {
-                            TEIPC_ERROR("frame resize failed");
+                            TEIO_ERROR("frame resize failed");
                             return;
                         }
 
@@ -130,7 +130,7 @@ namespace triengine::ipc::surface
                         break;
                     }
                     default:
-                        TEIPC_WARN("server got unknown request packet");
+                        TEIO_WARN("server got unknown request packet");
                         break;
                     } // switch
                 });
@@ -225,4 +225,4 @@ namespace triengine::ipc::surface
         _iface.reset();
     }
 
-} // namespace triengine::ipc::surface
+} // namespace triengine_interop::surface

@@ -1,7 +1,7 @@
-#include <triengine_ipc/transport/ipc_session.hh>
+#include <triengine_interop/transport/ipc_session.hh>
 
 #include "detail/ipc_detail.hh"
-#include <triengine_ipc/utility/logger.hh>
+#include <triengine_interop/utility/logger.hh>
 
 #include <thread>
 #include <future>
@@ -14,7 +14,7 @@
 #include <mutex>
 #include <utility>
 
-namespace triengine::ipc
+namespace triengine_interop
 {
 
 ipc_session::ipc_session(
@@ -23,18 +23,18 @@ ipc_session::ipc_session(
     : _base{ std::move(base) }
     , _cb_close{ std::move(close_cb) }
 {
-    TEIPC_TRACE("{} ENTER", __func__);
+    TEIO_TRACE("{} ENTER", __func__);
 
     if (!_base) {
         throw std::invalid_argument{ "ipc_session base cannot be null" };
     }
 
-    TEIPC_TRACE("{} LEAVE", __func__);
+    TEIO_TRACE("{} LEAVE", __func__);
 }
 
 ipc_session::~ipc_session()
 {
-    TEIPC_TRACE("{} ENTER", __func__);
+    TEIO_TRACE("{} ENTER", __func__);
 
     // NOTE: We can't directly call `close()` here, because `shared_from_this()` requires the object to be alive.
     // see: https://stackoverflow.com/q/28338978/3865427
@@ -43,7 +43,7 @@ ipc_session::~ipc_session()
         _recv_thread.join();
     }
 
-    TEIPC_TRACE("{} LEAVE", __func__);
+    TEIO_TRACE("{} LEAVE", __func__);
 }
 
 std::string_view ipc_session::get_name() const
@@ -84,14 +84,14 @@ void ipc_session::close()
 
     std::scoped_lock lk{ _session_lock };
 
-    TEIPC_DEBUG("session close start..");
+    TEIO_DEBUG("session close start..");
 
     // Signal the receive loop to stop and best-effort notify the peer (fires once).
     this->request_close();
 
     // Wait for the receive thread to finish, then release the per-connection state.
     if (_recv_thread.joinable()) {
-        TEIPC_TRACE("terminating recv thread..");
+        TEIO_TRACE("terminating recv thread..");
         _recv_thread.join(); // NOTE: `_cb_close` will be called in this thread.
     } else {
         // recv thread not running, calling disconnect callback directly
@@ -101,7 +101,7 @@ void ipc_session::close()
     }
 
     _state.reset();
-    TEIPC_DEBUG("session close complete.");
+    TEIO_DEBUG("session close complete.");
 }
 
 // Flip the session to not-alive and best-effort notify the peer, without joining the
@@ -142,7 +142,7 @@ std::errc ipc_session::send_notify(
     // but it is unavoidable for state consistency (to prevent TOCTTOU race conditions)!
     std::scoped_lock lk{ _session_lock };
     if (!_is_alive) {
-        TEIPC_WARN("Session is not alive, cannot send notify.");
+        TEIO_WARN("Session is not alive, cannot send notify.");
         return std::errc::not_connected;
     }
 
@@ -152,7 +152,7 @@ std::errc ipc_session::send_notify(
         payload,
         payload_size))
     {
-        TEIPC_ERROR("failed to send notify");
+        TEIO_ERROR("failed to send notify");
         this->request_close();
         return std::errc::io_error;
     }
@@ -167,7 +167,7 @@ std::errc ipc_session::send_request_sync(
     const std::chrono::milliseconds timeout)
 {
     if (payload_size == 0 || !payload) {
-        TEIPC_WARN("Invalid payload for request.");
+        TEIO_WARN("Invalid payload for request.");
         return std::errc::invalid_argument;
     }
 
@@ -198,7 +198,7 @@ std::errc ipc_session::send_request_sync(
             payload,
             payload_size))
         {
-            TEIPC_ERROR("failed to send request");
+            TEIO_ERROR("failed to send request");
 
             {
                 std::scoped_lock lk_req{ _state->req_map_lock };
@@ -237,13 +237,13 @@ std::errc ipc_session::send_request_sync(
                 } catch (const std::future_error&) {
                     // If the receiving thread has already called `set_value()`, `set_exception()` will fail.
                     // in this case, we do nothing and call `future.get()` below to handle the fall-through.
-                    TEIPC_TRACE("Request(seq={}) timed out, but response arrived just in time.", curr_req_id);
+                    TEIO_TRACE("Request(seq={}) timed out, but response arrived just in time.", curr_req_id);
                 }
             }
         }
 
         if (timeout_occurred) {
-            TEIPC_ERROR("Request(seq={}) timed out.", curr_req_id);
+            TEIO_ERROR("Request(seq={}) timed out.", curr_req_id);
             return std::errc::timed_out;
         }
     }
@@ -260,7 +260,7 @@ std::errc ipc_session::send_request_sync(
     } catch (const std::exception& e) {
         // The promise was broken or set to an exception because the session closed (e.g.
         // the peer disconnected) while waiting for the response.
-        TEIPC_WARN("request failed: {}", e.what());
+        TEIO_WARN("request failed: {}", e.what());
         return std::errc::not_connected;
     }
     return std::errc{};
@@ -269,7 +269,7 @@ std::errc ipc_session::send_request_sync(
 // NOTE: This function does NOT hold the context lock, be careful with synchronization.
 void ipc_session::_do_recv()
 {
-    TEIPC_TRACE("IPC session recv started...");
+    TEIO_TRACE("IPC session recv started...");
 
     constexpr auto kHeartBeatInterval = 5s;
     constexpr auto kHeartBeatTimeout = 40s;
@@ -284,7 +284,7 @@ void ipc_session::_do_recv()
     {
         // Check heartbeat timed out...
         if (std::chrono::steady_clock::now() - _state->last_peer_heartbeat.load() > kHeartBeatTimeout) {
-            TEIPC_ERROR("session {}: Remote disconnected (Peer heartbeat timed out)", this->get_name());
+            TEIO_ERROR("session {}: Remote disconnected (Peer heartbeat timed out)", this->get_name());
             _is_alive = false;
             break;
         }
@@ -293,7 +293,7 @@ void ipc_session::_do_recv()
         if (std::chrono::steady_clock::now() - last_sent_heartbeat > kHeartBeatInterval) {
             // Send heartbeat packet
             if (boost_ipc::no_error != _base->send_packet(detail::ipc_packet_type::heartbeat, 0)) {
-                TEIPC_ERROR("failed to send heartbeat");
+                TEIO_ERROR("failed to send heartbeat");
             }
             last_sent_heartbeat = std::chrono::steady_clock::now();
         }
@@ -311,13 +311,13 @@ void ipc_session::_do_recv()
         // while this thread runs (see set_notify_callback / set_request_callback).
         if (recvd_pck.type() == detail::ipc_packet_type::heartbeat)
         {
-            TEIPC_TRACE("session {}: update heartbeat", this->get_name());
+            TEIO_TRACE("session {}: update heartbeat", this->get_name());
             _state->last_peer_heartbeat.store(std::chrono::steady_clock::now());
             continue;
         }
         else if (recvd_pck.type() == detail::ipc_packet_type::disconnect)
         {
-            TEIPC_WARN("session {}: Remote disconnected", this->get_name());
+            TEIO_WARN("session {}: Remote disconnected", this->get_name());
             _is_alive = false;
             break;
         }
@@ -347,15 +347,15 @@ void ipc_session::_do_recv()
                         rep_pck_buff.data(),
                         rep_pck_buff.size()))
                     {
-                        TEIPC_ERROR("failed to send response");
+                        TEIO_ERROR("failed to send response");
                     }
                 } else {
-                    TEIPC_WARN("response packet empty");
+                    TEIO_WARN("response packet empty");
                 }
             }
             else
             {
-                TEIPC_WARN("request handler not registered");
+                TEIO_WARN("request handler not registered");
             }
         }
         else if (recvd_pck.type() == detail::ipc_packet_type::response)
@@ -371,15 +371,15 @@ void ipc_session::_do_recv()
                 try {
                     prm.set_value(std::move(payload_copy));
                 } catch (const std::future_error& e) {
-                    TEIPC_WARN("Failed to set value for request ID {}: {}", recvd_pck.id(), e.what());
+                    TEIO_WARN("Failed to set value for request ID {}: {}", recvd_pck.id(), e.what());
                 }
             } else {
-                TEIPC_WARN("Received response for unknown request ID: {}", recvd_pck.id());
+                TEIO_WARN("Received response for unknown request ID: {}", recvd_pck.id());
             }
         }
         else
         {
-            TEIPC_WARN("Got unknown packet ({})", static_cast<int>(recvd_pck.type()));
+            TEIO_WARN("Got unknown packet ({})", static_cast<int>(recvd_pck.type()));
         }
 
     } // while
@@ -410,7 +410,7 @@ void ipc_session::_do_recv()
     // sole owner is the server's map, so destruction happens on the server's thread.
     _is_recv_done = true;
 
-    TEIPC_TRACE("IPC session recv terminated.");
+    TEIO_TRACE("IPC session recv terminated.");
 }
 
-} // namespace triengine::ipc
+} // namespace triengine_interop

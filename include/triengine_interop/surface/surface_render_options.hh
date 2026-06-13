@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-namespace triengine::ipc::surface
+namespace triengine_interop::surface
 {
     struct surface_render_options
     {
@@ -8,4 +8,4 @@ namespace triengine::ipc::surface
         bool convert_rgba_to_bgra = false; // swap R/B channels in the blit shader
     };
 
-} // namespace triengine::ipc::surface
+} // namespace triengine_interop::surface

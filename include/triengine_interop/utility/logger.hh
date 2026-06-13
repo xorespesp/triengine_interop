@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <utility>
 
-namespace triengine::ipc::utility
+namespace triengine_interop::utility
 {
     enum class log_level {
         trace,
@@ -65,12 +65,12 @@ namespace triengine::ipc::utility
         emit_log(lv, loc, fmt::format(fmt_str, std::forward<Args>(args)...));
     }
 
-} // namespace triengine::ipc::utility
+} // namespace triengine_interop::utility
 
-#define _TEIPC_SRC_LOC() ::triengine::ipc::utility::source_loc{ __FILE__, __LINE__, __func__ }
+#define _TEIO_SRC_LOC() ::triengine_interop::utility::source_loc{ __FILE__, __LINE__, __func__ }
 
-#define TEIPC_TRACE(...) ::triengine::ipc::utility::log_message(::triengine::ipc::utility::log_level::trace, _TEIPC_SRC_LOC(), __VA_ARGS__)
-#define TEIPC_DEBUG(...) ::triengine::ipc::utility::log_message(::triengine::ipc::utility::log_level::debug, _TEIPC_SRC_LOC(), __VA_ARGS__)
-#define TEIPC_INFO(...)  ::triengine::ipc::utility::log_message(::triengine::ipc::utility::log_level::info,  _TEIPC_SRC_LOC(), __VA_ARGS__)
-#define TEIPC_WARN(...)  ::triengine::ipc::utility::log_message(::triengine::ipc::utility::log_level::warn,  _TEIPC_SRC_LOC(), __VA_ARGS__)
-#define TEIPC_ERROR(...) ::triengine::ipc::utility::log_message(::triengine::ipc::utility::log_level::error, _TEIPC_SRC_LOC(), __VA_ARGS__)
+#define TEIO_TRACE(...) ::triengine_interop::utility::log_message(::triengine_interop::utility::log_level::trace, _TEIO_SRC_LOC(), __VA_ARGS__)
+#define TEIO_DEBUG(...) ::triengine_interop::utility::log_message(::triengine_interop::utility::log_level::debug, _TEIO_SRC_LOC(), __VA_ARGS__)
+#define TEIO_INFO(...)  ::triengine_interop::utility::log_message(::triengine_interop::utility::log_level::info,  _TEIO_SRC_LOC(), __VA_ARGS__)
+#define TEIO_WARN(...)  ::triengine_interop::utility::log_message(::triengine_interop::utility::log_level::warn,  _TEIO_SRC_LOC(), __VA_ARGS__)
+#define TEIO_ERROR(...) ::triengine_interop::utility::log_message(::triengine_interop::utility::log_level::error, _TEIO_SRC_LOC(), __VA_ARGS__)

@@ -1,9 +1,9 @@
 ﻿#pragma once
-#include <triengine_ipc/transport/ipc_client.hh>
-#include <triengine_ipc/surface/detail/shared_surface_consumer.hh>
-#include <triengine_ipc/surface/surface_render_options.hh>
-#include <triengine_ipc/proto/ipc_proto.hh>
-#include <triengine_ipc/proto/input_events.hh>
+#include <triengine_interop/transport/ipc_client.hh>
+#include <triengine_interop/surface/detail/shared_surface_consumer.hh>
+#include <triengine_interop/surface/surface_render_options.hh>
+#include <triengine_interop/proto/ipc_proto.hh>
+#include <triengine_interop/proto/input_events.hh>
 
 #include <functional>
 #include <memory>
@@ -12,7 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace triengine::ipc::surface
+namespace triengine_interop::surface
 {
     // Client-side endpoint for consuming a renderer process's shared DX11 surface.
     // Owns the IPC connection and the surface interop: it connects, performs the
@@ -105,4 +105,4 @@ namespace triengine::ipc::surface
         std::function<void()> _on_disconnect;
     };
 
-} // namespace triengine::ipc::surface
+} // namespace triengine_interop::surface

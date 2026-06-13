@@ -1,8 +1,8 @@
-﻿#include <triengine_ipc/surface/detail/shared_surface_consumer.hh>
-#include <triengine_ipc/utility/unique_handle.hh>
-#include <triengine_ipc/proto/ipc_proto.hh>
+﻿#include <triengine_interop/surface/detail/shared_surface_consumer.hh>
+#include "unique_handle.hh"
+#include <triengine_interop/proto/ipc_proto.hh>
 
-#include <triengine_ipc/utility/logger.hh>
+#include <triengine_interop/utility/logger.hh>
 
 #include <dxgi1_2.h>
 #include <d3dcompiler.h>
@@ -16,9 +16,9 @@
 #include <system_error>
 #include <chrono>
 
-namespace triengine::ipc::surface::detail
+namespace triengine_interop::surface::detail
 {
-    namespace proto = triengine::ipc::proto;
+    namespace proto = triengine_interop::proto;
     using Microsoft::WRL::ComPtr;
 
     namespace
@@ -33,7 +33,7 @@ namespace triengine::ipc::surface::detail
             // (`ID3D11Device::CreateTexture2D: D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX is only available for devices created off of Dxgi1.1 factories or later.` D3D11 오류 방지)
             ComPtr<IDXGIFactory2> dxgi_factory2;
             if (FAILED(::CreateDXGIFactory2(0, IID_PPV_ARGS(&dxgi_factory2)))) {
-                TEIPC_ERROR("Failed to create DXGI factory");
+                TEIO_ERROR("Failed to create DXGI factory");
                 return false;
             }
 
@@ -48,7 +48,7 @@ namespace triengine::ipc::surface::detail
                 }
             }
             if (!adapter) {
-                TEIPC_ERROR("Matching adapter not found");
+                TEIO_ERROR("Matching adapter not found");
                 return false;
             }
 
@@ -67,19 +67,19 @@ namespace triengine::ipc::surface::detail
                 D3D11_SDK_VERSION,
                 &dx11_device0, nullptr, &dx11_device_context0)))
             {
-                TEIPC_ERROR("Failed to create D3D11 device");
+                TEIO_ERROR("Failed to create D3D11 device");
                 return false;
             }
 
             // Convert `ID3D11Device` -> `ID3D11Device2` (Higher version object)
             if (FAILED(dx11_device0.As(&out_device))) {
-                TEIPC_ERROR("Failed to convert to ID3D11Device2");
+                TEIO_ERROR("Failed to convert to ID3D11Device2");
                 return false;
             }
 
             // Convert `ID3D11DeviceContext` -> `ID3D11DeviceContext2` (Higher version object)
             if (FAILED(dx11_device_context0.As(&out_context))) {
-                TEIPC_ERROR("Failed to convert to ID3D11DeviceContext2");
+                TEIO_ERROR("Failed to convert to ID3D11DeviceContext2");
                 return false;
             }
             return true;
@@ -101,7 +101,7 @@ namespace triengine::ipc::surface::detail
                 &blob, &err_blob
             );
             if (FAILED(hr)) {
-                TEIPC_ERROR("failed to compile {} shader (HRESULT: {:08X}): {}"
+                TEIO_ERROR("failed to compile {} shader (HRESULT: {:08X}): {}"
                     , target
                     , static_cast<uint32_t>(hr)
                     , err_blob ? static_cast<const char*>(err_blob->GetBufferPointer()) : ""
@@ -169,7 +169,7 @@ namespace triengine::ipc::surface::detail
                 nullptr,
                 &out_vs)))
             {
-                TEIPC_ERROR("Failed to create vertex shader");
+                TEIO_ERROR("Failed to create vertex shader");
                 return false;
             }
 
@@ -209,7 +209,7 @@ namespace triengine::ipc::surface::detail
                 nullptr,
                 &out_ps)))
             {
-                TEIPC_ERROR("Failed to create pixel shader");
+                TEIO_ERROR("Failed to create pixel shader");
                 return false;
             }
 
@@ -223,7 +223,7 @@ namespace triengine::ipc::surface::detail
             sampDesc.MinLOD = 0;
             sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
             if (FAILED(device->CreateSamplerState(&sampDesc, &out_sampler))) {
-                TEIPC_ERROR("Failed to create sampler state");
+                TEIO_ERROR("Failed to create sampler state");
                 return false;
             }
             return true;
@@ -251,17 +251,17 @@ namespace triengine::ipc::surface::detail
                 FALSE, // 핸들 상속 여부
                 DUPLICATE_SAME_ACCESS // 원본과 동일한 접근 권한으로 복제
             )) {
-                TEIPC_ERROR("Failed to duplicate shared texture handle. (error: {})", ::GetLastError());
+                TEIO_ERROR("Failed to duplicate shared texture handle. (error: {})", ::GetLastError());
                 return nullptr;
             }
 
-            utility::unique_handle duplicated_handle_guard{ duplicated_handle }; // 핸들의 자동 해제를 위한 RAII 핸들 래퍼
+            unique_handle duplicated_handle_guard{ duplicated_handle }; // 핸들의 자동 해제를 위한 RAII 핸들 래퍼
             if (HRESULT hr = device->OpenSharedResource1(
                 duplicated_handle_guard.get(),
                 IID_PPV_ARGS(&texture));
                 FAILED(hr))
             {
-                TEIPC_ERROR("Failed to open shared texture resource. (HRESULT: {:08X})", static_cast<uint32_t>(hr));
+                TEIO_ERROR("Failed to open shared texture resource. (HRESULT: {:08X})", static_cast<uint32_t>(hr));
                 return nullptr;
             }
 
@@ -290,7 +290,7 @@ namespace triengine::ipc::surface::detail
             const surface_render_options& config)
         {
             if (_created) {
-                TEIPC_ERROR("consumer already created");
+                TEIO_ERROR("consumer already created");
                 return false;
             }
 
@@ -301,13 +301,13 @@ namespace triengine::ipc::surface::detail
             }
 
             // 2. open the renderer process (needed to duplicate the shared handle)
-            utility::unique_handle renderer_process_handle{ ::OpenProcess(
+            unique_handle renderer_process_handle{ ::OpenProcess(
                 PROCESS_DUP_HANDLE | SYNCHRONIZE, 
                 FALSE, 
                 init_rep.renderer_process_id
             ) };
             if (!renderer_process_handle) {
-                TEIPC_ERROR("failed to open renderer process (pid: {})", init_rep.renderer_process_id);
+                TEIO_ERROR("failed to open renderer process (pid: {})", init_rep.renderer_process_id);
                 return false;
             }
 
@@ -356,7 +356,7 @@ namespace triengine::ipc::surface::detail
             _height = initial_height;
             _created = true;
 
-            TEIPC_DEBUG("consumer created ({}x{}, renderer pid: {})"
+            TEIO_DEBUG("consumer created ({}x{}, renderer pid: {})"
                 , initial_width, initial_height
                 , init_rep.renderer_process_id
             );
@@ -413,10 +413,10 @@ namespace triengine::ipc::surface::detail
             case WAIT_TIMEOUT: // KeyedMutex를 획득하지 못했으므로 렌더링 작업을 건너뜀
                 return true; // Continue rendering with the previous frame to maintain smooth presentation
             case WAIT_ABANDONED: // KeyedMutex가 더 이상 일관된 상태가 아님. 이 경우, KeyedMutex와 SharedSurface 둘 다 해제한 후 재생성해야 함.
-                TEIPC_ERROR("Keyed mutex abandoned - renderer process may have crashed");
+                TEIO_ERROR("Keyed mutex abandoned - renderer process may have crashed");
                 return false;
             default:
-                TEIPC_ERROR("Unexpected AcquireSync result: 0x{:X}", static_cast<uint32_t>(sync_hr));
+                TEIO_ERROR("Unexpected AcquireSync result: 0x{:X}", static_cast<uint32_t>(sync_hr));
                 return false;
             }
         }
@@ -444,7 +444,7 @@ namespace triengine::ipc::surface::detail
         bool resize(ipc_client& cli, const int32_t new_width, const int32_t new_height)
         {
             if (!_created) {
-                TEIPC_ERROR("resize called before create");
+                TEIO_ERROR("resize called before create");
                 return false;
             }
 
@@ -474,7 +474,7 @@ namespace triengine::ipc::surface::detail
             _width = new_width;
             _height = new_height;
 
-            TEIPC_DEBUG("consumer resized to {}x{}", new_width, new_height);
+            TEIO_DEBUG("consumer resized to {}x{}", new_width, new_height);
             return true;
         }
 
@@ -503,13 +503,13 @@ namespace triengine::ipc::surface::detail
                 // Open shared interop texture from native handle
                 out->shared_tex = open_shared_texture(device, surface_handle, owner_process);
                 if (!out->shared_tex) {
-                    TEIPC_ERROR("Failed to open surface handle");
+                    TEIO_ERROR("Failed to open surface handle");
                     return nullptr;
                 }
 
                 // Get the KeyedMutex interface from the shared texture
                 if (FAILED(out->shared_tex.As(&out->shared_tex_keyed_mutex))) {
-                    TEIPC_ERROR("Failed to get KeyedMutex from shared texture");
+                    TEIO_ERROR("Failed to get KeyedMutex from shared texture");
                     return nullptr;
                 }
 
@@ -526,14 +526,14 @@ namespace triengine::ipc::surface::detail
                 sharedTexCopyDesc.CPUAccessFlags = 0; // No cpu access
                 sharedTexCopyDesc.MiscFlags = 0; // No misc flags
                 if (FAILED(device->CreateTexture2D(&sharedTexCopyDesc, nullptr, &out->copy_tex))) {
-                    TEIPC_ERROR("Failed to create shared texture copy");
+                    TEIO_ERROR("Failed to create shared texture copy");
                     return nullptr;
                 }
 
                 // Create Shader Resource View (SRV) of the copied shared screen texture for shader access
                 // Equivalent of: `glBindTexture`+ `sampler2D`
                 if (FAILED(device->CreateShaderResourceView(out->copy_tex.Get(), nullptr, &out->copy_tex_srv))) {
-                    TEIPC_ERROR("Failed to create shader resource view");
+                    TEIO_ERROR("Failed to create shader resource view");
                     return nullptr;
                 }
 
@@ -561,20 +561,20 @@ namespace triengine::ipc::surface::detail
 
             std::vector<uint8_t> rep_bytes;
             if (std::errc{} != cli.send_request_sync(req.data(), req.size(), rep_bytes, init_request_timeout)) {
-                TEIPC_ERROR("failed to send init request");
+                TEIO_ERROR("failed to send init request");
                 return false;
             }
 
             packet_view view{ rep_bytes.data(), rep_bytes.size() };
             const auto* init_rep = view.body<proto::packets::init_response_t>();
             if (!init_rep || init_rep->status != proto::packets::init_status::ok) {
-                TEIPC_ERROR("init request rejected by renderer (status: {})"
+                TEIO_ERROR("init request rejected by renderer (status: {})"
                     , init_rep ? static_cast<int>(init_rep->status) : -1);
                 return false;
             }
 
             out = *init_rep;
-            TEIPC_DEBUG("init response (pid: {}, adapter: {:x}-{:x}, surface: {:p})"
+            TEIO_DEBUG("init response (pid: {}, adapter: {:x}-{:x}, surface: {:p})"
                 , out.renderer_process_id
                 , out.target_adapter_luid.HighPart
                 , out.target_adapter_luid.LowPart
@@ -595,14 +595,14 @@ namespace triengine::ipc::surface::detail
 
             std::vector<uint8_t> rep_bytes;
             if (std::errc{} != cli.send_request_sync(req.data(), req.size(), rep_bytes)) {
-                TEIPC_ERROR("failed to send resize request");
+                TEIO_ERROR("failed to send resize request");
                 return false;
             }
 
             packet_view view{ rep_bytes.data(), rep_bytes.size() };
             const auto* resize_rep = view.body<proto::packets::frame_resize_response_t>();
             if (!resize_rep) {
-                TEIPC_ERROR("malformed resize response");
+                TEIO_ERROR("malformed resize response");
                 return false;
             }
 
@@ -614,7 +614,7 @@ namespace triengine::ipc::surface::detail
         bool _created{ false }; // whether create() has succeeded
         surface_render_options _config{}; // blit options (Y-flip / channel swap)
 
-        utility::unique_handle _renderer_process_handle; // renderer process, used to duplicate shared-surface handles
+        unique_handle _renderer_process_handle; // renderer process, used to duplicate shared-surface handles
 
         ComPtr<ID3D11Device2> _device; // device created on the renderer's adapter
         ComPtr<ID3D11DeviceContext2> _context; // immediate context of `_device`
@@ -663,4 +663,4 @@ namespace triengine::ipc::surface::detail
         return _imp->resize(cli, new_width, new_height);
     }
 
-} // namespace triengine::ipc::surface::detail
+} // namespace triengine_interop::surface::detail

@@ -7,9 +7,9 @@
 #include <string_view>
 #include <stdexcept>
 #include <type_traits>
-#include <triengine_ipc/utility/bit.hh>
+#include <triengine_interop/utility/bit.hh>
 
-namespace triengine::ipc::proto
+namespace triengine_interop::proto
 {
     // Protocol identity. Both peers (renderer process and client) MUST agree on these.
     // The values are carried in the init handshake so a mismatch can be rejected loudly
@@ -213,9 +213,9 @@ namespace triengine::ipc::proto
 
     } // namespace packets
 
-} // namespace triengine::ipc::proto
+} // namespace triengine_interop::proto
 
-namespace triengine::ipc
+namespace triengine_interop
 {
     template <typename _PckBody>
     class packet_builder
@@ -330,4 +330,4 @@ namespace triengine::ipc
         std::string_view _data_view{};
     };
 
-} // namespace triengine::ipc
+} // namespace triengine_interop

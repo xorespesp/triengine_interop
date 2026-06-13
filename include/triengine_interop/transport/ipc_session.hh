@@ -12,7 +12,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace triengine::ipc
+namespace triengine_interop
 {
     using namespace std::chrono_literals;
 
@@ -106,4 +106,4 @@ namespace triengine::ipc
         close_callback _cb_close;
     };
 
-} // namespace triengine::ipc
+} // namespace triengine_interop

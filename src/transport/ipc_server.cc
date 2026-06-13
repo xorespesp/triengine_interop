@@ -1,7 +1,7 @@
-#include <triengine_ipc/transport/ipc_server.hh>
+#include <triengine_interop/transport/ipc_server.hh>
 
 #include "detail/ipc_detail.hh"
-#include <triengine_ipc/utility/logger.hh>
+#include <triengine_interop/utility/logger.hh>
 
 #include <thread>
 #include <atomic>
@@ -14,7 +14,7 @@
 #include <string>
 #include <utility>
 
-namespace triengine::ipc
+namespace triengine_interop
 {
 
 struct ipc_server::context_t final
@@ -176,7 +176,7 @@ void ipc_server::_do_accept()
         // client side has, so the server only discards stale requests and never re-queues
         // them: a dropped request has no other reader that still needs it.
         if (detail::system_now_unix_ns() > req_pck.deadline_unix_ns) {
-            TEIPC_WARN("Stale handshake request dropped (client deadline already passed)");
+            TEIO_WARN("Stale handshake request dropped (client deadline already passed)");
             return;
         }
 
@@ -185,7 +185,7 @@ void ipc_server::_do_accept()
         {
             std::scoped_lock sessions_lk{ _ctx->sessions_mutex };
             if (_ctx->sessions.size() >= _ctx->max_sessions) {
-                TEIPC_WARN("New session connection denied (maximum number of sessions reached)");
+                TEIO_WARN("New session connection denied (maximum number of sessions reached)");
                 return;
             }
         }
@@ -199,7 +199,7 @@ void ipc_server::_do_accept()
             std::make_unique<detail::ipc_session_base>(detail::ipc_session_base::mode_type::create, new_session_name, _ctx->shm),
             [weak_self = std::weak_ptr{ shared_from_this() }](std::shared_ptr<ipc_session> session)
             {
-                TEIPC_INFO("Session {} closed.", session->get_name());
+                TEIO_INFO("Session {} closed.", session->get_name());
 
                 auto self = weak_self.lock();
                 if (!self) {
@@ -222,7 +222,7 @@ void ipc_server::_do_accept()
                 }
             });
 
-        TEIPC_INFO("New session accepted! (name: {})", new_session_name);
+        TEIO_INFO("New session accepted! (name: {})", new_session_name);
 
         // Bring the session up (the connect callback installs handlers and starts its
         // receive thread). If this throws, new_session is discarded here and was never
@@ -230,7 +230,7 @@ void ipc_server::_do_accept()
         if (_on_session_connect) {
             _on_session_connect(new_session);
         } else {
-            TEIPC_WARN("No session connect callback set, cannot notify about new session.");
+            TEIO_WARN("No session connect callback set, cannot notify about new session.");
         }
 
         // Send a handshake response(ACK) to the client, echoing the nonce/deadline for reply
@@ -272,10 +272,10 @@ void ipc_server::_do_accept()
             // accept thread: an uncaught exception here would terminate the process. Log it
             // and keep listening; the brief sleep avoids a tight error spin if the failure
             // is persistent.
-            TEIPC_ERROR("accept loop iteration failed: {}", e.what());
+            TEIO_ERROR("accept loop iteration failed: {}", e.what());
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
 }
 
-} // namespace triengine::ipc
+} // namespace triengine_interop

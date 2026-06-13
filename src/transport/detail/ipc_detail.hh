@@ -15,12 +15,12 @@
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
-#include <triengine_ipc/utility/logger.hh>
+#include <triengine_interop/utility/logger.hh>
 #include <fmt/format.h>
 
 namespace boost_ipc = boost::interprocess;
 
-namespace triengine::ipc
+namespace triengine_interop
 {
     using namespace std::chrono_literals;
 
@@ -115,7 +115,7 @@ namespace detail
 
             shm_string* const body_ptr = static_cast<shm_string*>(_shm->get_address_from_handle(_data_handle));
             if (!body_ptr) {
-                TEIPC_ERROR("Received packet with invalid data handle: {}", _data_handle);
+                TEIO_ERROR("Received packet with invalid data handle: {}", _data_handle);
                 return std::string_view{};
             }
 
@@ -258,7 +258,7 @@ namespace detail
 
             } catch (const boost_ipc::interprocess_exception& e) {
                 ec = e.get_error_code();
-                TEIPC_ERROR("Failed to send packet (error: {})", e.what());
+                TEIO_ERROR("Failed to send packet (error: {})", e.what());
             }
 
             return ec;
@@ -300,7 +300,7 @@ namespace detail
                 if (ec) {
                     *ec = e.get_error_code();
                 }
-                TEIPC_ERROR("Failed to receive packet (error: {})", e.what());
+                TEIO_ERROR("Failed to receive packet (error: {})", e.what());
             }
 
             return std::nullopt;
@@ -359,4 +359,4 @@ namespace detail
 
 } // namespace detail
 
-} // namespace triengine::ipc
+} // namespace triengine_interop
