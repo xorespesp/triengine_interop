@@ -1,4 +1,4 @@
-﻿#include <triengine_interop/surface/shared_surface_server.hh>
+﻿#include <triengine_interop/surface/surface_producer.hh>
 #include <triengine_interop/surface/proto/surface_proto.hh>
 #include <triengine_interop/transport/ipc_packet.hh>
 
@@ -19,7 +19,7 @@ namespace triengine_interop::surface
 
     namespace
     {
-        using session_interface = shared_surface_server::session_interface;
+        using session_interface = surface_producer::session_interface;
 
         void build_init_response(
             std::vector<uint8_t>& out,
@@ -53,7 +53,7 @@ namespace triengine_interop::surface
                     {
                         const auto* body = pck.body<proto::packets::init_request_t>();
 
-                        // Reject clients built against an incompatible protocol before doing any work.
+                        // Reject a consumer built against an incompatible protocol before doing any work.
                         if (!body ||
                             body->magic != proto::PROTO_MAGIC ||
                             body->proto_version != proto::PROTO_VERSION)
@@ -78,16 +78,14 @@ namespace triengine_interop::surface
 
                         LUID adapter_luid{};
                         HANDLE surface_handle = nullptr;
-                        bool ok = false;
                         try {
-                            ok = iface.on_session_init(body->frame_width, body->frame_height, adapter_luid, surface_handle);
+                            iface.on_session_init(
+                                body->frame_width, body->frame_height, 
+                                adapter_luid, 
+                                surface_handle
+                            );
                         } catch (const std::exception& e) {
                             TEIO_ERROR("renderer initialization failed: {}", e.what());
-                            ok = false;
-                        }
-
-                        if (!ok) {
-                            TEIO_ERROR("renderer initialization failed");
                             build_init_response(rep_pck_data,
                                 proto::packets::init_status::internal_error,
                                 0,
@@ -117,15 +115,15 @@ namespace triengine_interop::surface
 
                         HANDLE new_surface_handle = nullptr;
                         try {
-                            new_surface_handle = iface.on_frame_resize_event(body->width, body->height);
+                            iface.on_frame_resize_event(
+                                body->width, body->height, 
+                                new_surface_handle
+                            );
                         } catch (const std::exception& e) {
                             TEIO_ERROR("frame resize failed: {}", e.what());
+                            // Always reply with a well-formed response; a null handle signals
+                            // the resize failure to the consumer.
                             new_surface_handle = nullptr;
-                        }
-
-                        if (!new_surface_handle) {
-                            TEIO_ERROR("frame resize failed");
-                            return;
                         }
 
                         packet_builder<proto::packets::frame_resize_response_t> rep_pck{ static_cast<uint32_t>(proto::packet_type::frame_resize_response) };
@@ -183,14 +181,14 @@ namespace triengine_interop::surface
 
     } // namespace
 
-    shared_surface_server::shared_surface_server() = default;
+    surface_producer::surface_producer() = default;
 
-    shared_surface_server::~shared_surface_server()
+    surface_producer::~surface_producer()
     {
         this->stop();
     }
 
-    void shared_surface_server::start(
+    void surface_producer::start(
         std::string_view server_name, 
         std::shared_ptr<session_interface> iface)
     {
@@ -216,11 +214,11 @@ namespace triengine_interop::surface
                 }
             });
 
-        // A shared scene is driven by a single viewer: host exactly one session.
+        // A shared scene is driven by a single consumer: host exactly one session.
         _server->start(server_name, 1);
     }
 
-    void shared_surface_server::stop()
+    void surface_producer::stop()
     {
         if (_server) {
             _server->stop();

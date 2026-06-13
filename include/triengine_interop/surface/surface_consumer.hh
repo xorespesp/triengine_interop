@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include <triengine_interop/transport/ipc_client.hh>
-#include <triengine_interop/surface/detail/shared_surface_consumer.hh>
+#include <triengine_interop/surface/detail/shared_texture_blitter.hh>
 #include <triengine_interop/surface/surface_render_options.hh>
 #include <triengine_interop/surface/proto/surface_proto.hh>
 
@@ -13,31 +13,31 @@
 
 namespace triengine_interop::surface
 {
-    // Client-side endpoint for consuming a renderer process's shared DX11 surface.
-    // Owns the IPC connection and the surface interop: it connects, performs the
-    // init handshake, opens the shared keyed-mutex texture, synchronizes the latest
-    // frame into a private copy, and blits that copy onto a render target the caller
-    // owns.
+    // Consumer side of the shared-surface interop: consumes a renderer (producer)
+    // process's shared DX11 surface. Owns the IPC connection and the surface interop:
+    // it connects, performs the init handshake, opens the shared keyed-mutex texture,
+    // synchronizes the latest frame into a private copy, and blits that copy onto a
+    // render target the caller owns.
     //
     // The caller builds its own present target (a swap-chain back buffer, an exported
     // render texture, etc.) on get_dx11_device() and passes that target's RTV to
-    // blit_to_render_target(); the client itself is agnostic to how the frame is
-    // finally presented. This lets the same client serve both a swap-chain viewer and
+    // blit_to_render_target(); the consumer itself is agnostic to how the frame is
+    // finally presented. This lets the same consumer serve both a swap-chain viewer and
     // a Flutter plugin that exports a render texture.
-    class shared_surface_client
+    class surface_consumer
     {
     public:
-        shared_surface_client();
-        ~shared_surface_client();
+        surface_consumer();
+        ~surface_consumer();
 
-        shared_surface_client(const shared_surface_client&) = delete;
-        shared_surface_client& operator=(const shared_surface_client&) = delete;
+        surface_consumer(const surface_consumer&) = delete;
+        surface_consumer& operator=(const surface_consumer&) = delete;
 
         bool is_connected() const noexcept;
 
-        // Connect to the renderer server, perform the init handshake, open the shared
+        // Connect to the producer, perform the init handshake, open the shared
         // surface, and build the blit pipeline. Returns false on any failure (and
-        // leaves the client disconnected).
+        // leaves the consumer disconnected).
         bool connect(
             std::string_view server_name,
             int32_t initial_width,
@@ -51,8 +51,9 @@ namespace triengine_interop::surface
         // present target on the same device.
         ID3D11Device2* get_dx11_device() const noexcept;
         ID3D11DeviceContext2* get_dx11_context() const noexcept;
-        int32_t get_width() const noexcept;
-        int32_t get_height() const noexcept;
+
+        // The current frame size of the shared surface ({0,0} if not connected).
+        SIZE get_frame_size() const noexcept;
 
         // Pull the latest renderer frame into the private copy, guarded by the shared
         // surface's keyed mutex. Returns true on success or when no new frame is
@@ -100,7 +101,7 @@ namespace triengine_interop::surface
 
     private:
         std::shared_ptr<transport::ipc_client> _client;
-        detail::shared_surface_consumer _consumer;
+        detail::shared_texture_blitter _blitter;
         std::function<void()> _on_disconnect;
     };
 

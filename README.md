@@ -26,12 +26,12 @@ stays graphics-free). Under `triengine_interop::surface`.
 - **protocol** (`triengine_interop::surface::proto`) — the wire packets (init / resize /
   mouse), the input enums, and the `make_mouse_*` packet builders. These define the
   surface-sharing payloads carried in the transport's generic packet body.
-- **`shared_surface_client`** (viewer side) — connects, runs the handshake, opens the
-  renderer's shared texture, and blits each frame onto a render target the caller owns.
-- **`shared_surface_server`** (renderer side) — owns an `ipc_server` and serves a
-  single client (one shared scene, one viewer): the surface handshake plus decoded
-  input events. The application implements `shared_surface_server::session_interface`
-  and passes it to `start()`.
+- **`surface_consumer`** (viewer side) — connects, runs the handshake, opens the
+  producer's shared texture, and blits each frame onto a render target the caller owns.
+- **`surface_producer`** (renderer side) — owns an `ipc_server` and serves a single
+  consumer (one shared scene, one viewer): the surface handshake plus decoded input
+  events. The application implements `surface_producer::session_interface` and passes
+  it to `start()`.
 
 ## Consuming via CMake
 

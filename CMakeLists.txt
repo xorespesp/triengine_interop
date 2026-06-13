@@ -104,12 +104,12 @@ endif()
 # Surface toolkit target (Triengine::interop_surface)
 #
 # A second library, layered on top of the transport/proto body, that holds the
-# DX11 shared-surface interop: client-side endpoints that consume a renderer's
-# shared surface (shared_surface_consumer / shared_surface_client) and a
-# server-side endpoint that serves the surface handshake (shared_surface_server).
-# It depends on the body PUBLIC and on the DirectX libraries PRIVATE, so the body
-# itself stays free of any graphics dependency; only consumers that need surface
-# sharing link this target.
+# DX11 shared-surface interop: the consumer-side endpoint that opens and presents a
+# producer's shared surface (surface_consumer, backed by the shared_texture_blitter
+# engine) and the producer-side endpoint that serves the surface handshake
+# (surface_producer). It depends on the body PUBLIC and on the DirectX libraries
+# PRIVATE, so the body itself stays free of any graphics dependency; only consumers
+# that need surface sharing link this target.
 # ----------------------------------------------------------------------------
 
 set(SURFACE_TARGET_NAME triengine_interop_surface)
@@ -120,14 +120,14 @@ add_library(Triengine::interop_surface ALIAS ${SURFACE_TARGET_NAME})
 target_sources(${SURFACE_TARGET_NAME}
     PRIVATE
         "src/surface/detail/unique_handle.hh"
-        "src/surface/detail/shared_surface_consumer.cc"
-        "src/surface/shared_surface_server.cc"
-        "src/surface/shared_surface_client.cc"
-        "include/triengine_interop/surface/detail/shared_surface_consumer.hh"
+        "src/surface/detail/shared_texture_blitter.cc"
+        "src/surface/surface_producer.cc"
+        "src/surface/surface_consumer.cc"
+        "include/triengine_interop/surface/detail/shared_texture_blitter.hh"
         "include/triengine_interop/surface/proto/surface_proto.hh"
         "include/triengine_interop/surface/surface_render_options.hh"
-        "include/triengine_interop/surface/shared_surface_server.hh"
-        "include/triengine_interop/surface/shared_surface_client.hh"
+        "include/triengine_interop/surface/surface_producer.hh"
+        "include/triengine_interop/surface/surface_consumer.hh"
 )
 
 target_compile_features(${SURFACE_TARGET_NAME} PUBLIC cxx_std_17)

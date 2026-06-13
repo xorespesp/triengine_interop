@@ -1,7 +1,5 @@
-﻿#include <triengine_interop/surface/detail/shared_surface_consumer.hh>
+﻿#include <triengine_interop/surface/detail/shared_texture_blitter.hh>
 #include "unique_handle.hh"
-#include <triengine_interop/surface/proto/surface_proto.hh>
-#include <triengine_interop/transport/ipc_packet.hh>
 
 #include <triengine_interop/utility/logger.hh>
 
@@ -14,16 +12,10 @@
 #include <vector>
 #include <cstring>
 #include <memory>
-#include <system_error>
-#include <chrono>
 
 namespace triengine_interop::surface::detail
 {
     using Microsoft::WRL::ComPtr;
-
-    using transport::ipc_client;
-    using transport::packet_builder;
-    using transport::packet_view;
 
     namespace
     {
@@ -274,7 +266,7 @@ namespace triengine_interop::surface::detail
 
     } // namespace
 
-    class shared_surface_consumer::impl
+    class shared_texture_blitter::impl
     {
     public:
         impl() = default;
@@ -282,72 +274,72 @@ namespace triengine_interop::surface::detail
 
         ID3D11Device2* get_dx11_device() const noexcept { return _device.Get(); }
         ID3D11DeviceContext2* get_dx11_context() const noexcept { return _context.Get(); }
-        int32_t get_width() const noexcept { return _width; }
-        int32_t get_height() const noexcept { return _height; }
+
+        SIZE get_frame_size() const noexcept {
+            return _surface_resources
+                ? SIZE{ static_cast<LONG>(_surface_resources->shared_tex_desc.Width),
+                        static_cast<LONG>(_surface_resources->shared_tex_desc.Height) }
+                : SIZE{ 0, 0 };
+        }
 
         bool is_created() const noexcept { return _created; }
 
         bool create(
-            ipc_client& cli, 
-            const int32_t initial_width, 
-            const int32_t initial_height, 
+            const DWORD renderer_process_id,
+            const LUID target_adapter_luid,
+            const HANDLE surface_handle,
             const surface_render_options& config)
         {
             if (_created) {
-                TEIO_ERROR("consumer already created");
+                TEIO_ERROR("blitter already created");
                 return false;
             }
 
-            // 1. init handshake
-            proto::packets::init_response_t init_rep{};
-            if (!this->_request_init(cli, initial_width, initial_height, init_rep)) {
-                return false;
-            }
-
-            // 2. open the renderer process (needed to duplicate the shared handle)
+            // 1. open the renderer process so its shared surface NT handle can be
+            //    duplicated into this process
             unique_handle renderer_process_handle{ ::OpenProcess(
-                PROCESS_DUP_HANDLE | SYNCHRONIZE, 
-                FALSE, 
-                init_rep.renderer_process_id
+                PROCESS_DUP_HANDLE | SYNCHRONIZE,
+                FALSE,
+                renderer_process_id
             ) };
             if (!renderer_process_handle) {
-                TEIO_ERROR("failed to open renderer process (pid: {})", init_rep.renderer_process_id);
+                TEIO_ERROR("failed to open renderer process (pid: {})", renderer_process_id);
                 return false;
             }
 
-            // 3. create the D3D11 device on the renderer's adapter
+            // 2. create the D3D11 device on the renderer's adapter
             ComPtr<ID3D11Device2> new_device;
             ComPtr<ID3D11DeviceContext2> new_context;
             if (!create_device(
-                init_rep.target_adapter_luid, 
-                new_device, 
+                target_adapter_luid,
+                new_device,
                 new_context)) {
                 return false;
             }
 
-            // 4. build the shared-surface resources (shared tex + keyed mutex + copy + SRV)
+            // 3. build the shared-surface resources (shared tex + keyed mutex + copy + SRV)
             auto new_surface_resources = surface_resources::build(
-                new_device.Get(), 
-                renderer_process_handle.get(), 
-                init_rep.surface_handle
+                new_device.Get(),
+                renderer_process_handle.get(),
+                surface_handle
             );
             if (!new_surface_resources) {
                 return false;
             }
 
-            // 5. build the blit pipeline (VS / PS / sampler)
+            // 4. build the blit pipeline (VS / PS / sampler)
             ComPtr<ID3D11VertexShader> new_vs;
             ComPtr<ID3D11PixelShader> new_ps;
             ComPtr<ID3D11SamplerState> new_sampler;
             if (!build_blit_pipeline(
-                new_device.Get(), 
-                config, 
-                new_vs, new_ps, 
+                new_device.Get(),
+                config,
+                new_vs, new_ps,
                 new_sampler)) {
                 return false;
             }
 
-            // 6. commit
+            // 5. commit
             _config = config;
             _renderer_process_handle = std::move(renderer_process_handle);
             _device = std::move(new_device);
@@ -356,13 +348,12 @@ namespace triengine_interop::surface::detail
             _vs = std::move(new_vs);
             _ps = std::move(new_ps);
             _sampler = std::move(new_sampler);
-            _width = initial_width;
-            _height = initial_height;
             _created = true;
 
-            TEIO_DEBUG("consumer created ({}x{}, renderer pid: {})"
-                , initial_width, initial_height
-                , init_rep.renderer_process_id
+            TEIO_DEBUG("blitter created ({}x{}, renderer pid: {})"
+                , _surface_resources->shared_tex_desc.Width
+                , _surface_resources->shared_tex_desc.Height
+                , renderer_process_id
             );
             return true;
         }
@@ -385,7 +376,6 @@ namespace triengine_interop::surface::detail
             _context.Reset();
             _device.Reset();
             _renderer_process_handle.reset();
-            _width = _height = 0;
             _created = false;
         }
 
@@ -445,40 +435,35 @@ namespace triengine_interop::surface::detail
             _context->Draw(3, 0); // draw a single full-screen triangle
         }
 
-        bool resize(ipc_client& cli, const int32_t new_width, const int32_t new_height)
+        bool reallocate_frame(const HANDLE new_surface_handle)
         {
             if (!_created) {
-                TEIO_ERROR("resize called before create");
-                return false;
-            }
-
-            HANDLE new_surface_handle = nullptr; // new shared surface handle
-            if (!this->_request_resize(cli, new_width, new_height, new_surface_handle)) {
+                TEIO_ERROR("reallocate_frame called before create");
                 return false;
             }
 
             // Build the new shared-surface resources; only swap on full success.
             auto new_surface_resources = surface_resources::build(
-                _device.Get(), 
-                _renderer_process_handle.get(), 
+                _device.Get(),
+                _renderer_process_handle.get(),
                 new_surface_handle
             );
             if (!new_surface_resources) {
                 return false;
             }
 
-            // First, need to clear the render target and shader resource views
-            // before resizing the swap chain and shared texture.
+            // Detach the old sampling resources from the pipeline before releasing them.
             _context->OMSetRenderTargets(0, nullptr, nullptr);
             ID3D11ShaderResourceView* nullSRV = nullptr;
             _context->PSSetShaderResources(0, 1, &nullSRV);
             _context->Flush(); // Wait for GPU to finish processing
 
             _surface_resources = std::move(new_surface_resources);
-            _width = new_width;
-            _height = new_height;
 
-            TEIO_DEBUG("consumer resized to {}x{}", new_width, new_height);
+            TEIO_DEBUG("blitter frame reallocated to {}x{}"
+                , _surface_resources->shared_tex_desc.Width
+                , _surface_resources->shared_tex_desc.Height
+            );
             return true;
         }
 
@@ -490,6 +475,7 @@ namespace triengine_interop::surface::detail
             ComPtr<IDXGIKeyedMutex> shared_tex_keyed_mutex; // keyed mutex of `shared_tex` (renderer<->consumer sync)
             ComPtr<ID3D11Texture2D> copy_tex; // private (non-shared) copy of `shared_tex`, sampled by the blit
             ComPtr<ID3D11ShaderResourceView> copy_tex_srv; // shader resource view of `copy_tex`
+            D3D11_TEXTURE2D_DESC shared_tex_desc{}; // descriptor of `shared_tex`; its size/format are the authoritative frame info
 
             surface_resources(const surface_resources&) = delete;
             surface_resources& operator=(const surface_resources&) = delete;
@@ -517,19 +503,22 @@ namespace triengine_interop::surface::detail
                     return nullptr;
                 }
 
-                // Create copy of the shared screen texture (non-shared)
-                // (This texture will be sampled to present to the render target)
-                D3D11_TEXTURE2D_DESC sharedTexCopyDesc{};
-                out->shared_tex->GetDesc(&sharedTexCopyDesc); // frame size & format will be same as shared texture
-                sharedTexCopyDesc.MipLevels = 1;
-                sharedTexCopyDesc.ArraySize = 1;
-                sharedTexCopyDesc.SampleDesc.Count = 1;
-                sharedTexCopyDesc.SampleDesc.Quality = 0;
-                sharedTexCopyDesc.Usage = D3D11_USAGE_DEFAULT;
-                sharedTexCopyDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-                sharedTexCopyDesc.CPUAccessFlags = 0; // No cpu access
-                sharedTexCopyDesc.MiscFlags = 0; // No misc flags
-                if (FAILED(device->CreateTexture2D(&sharedTexCopyDesc, nullptr, &out->copy_tex))) {
+                // Cache the shared texture's descriptor; its size and format are the
+                // authoritative frame info.
+                out->shared_tex->GetDesc(&out->shared_tex_desc);
+
+                // Create a private (non-shared) copy with the same size/format; this copy
+                // is sampled to present to the render target.
+                D3D11_TEXTURE2D_DESC copy_desc = out->shared_tex_desc;
+                copy_desc.MipLevels = 1;
+                copy_desc.ArraySize = 1;
+                copy_desc.SampleDesc.Count = 1;
+                copy_desc.SampleDesc.Quality = 0;
+                copy_desc.Usage = D3D11_USAGE_DEFAULT;
+                copy_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+                copy_desc.CPUAccessFlags = 0; // No cpu access
+                copy_desc.MiscFlags = 0; // No misc flags
+                if (FAILED(device->CreateTexture2D(&copy_desc, nullptr, &out->copy_tex))) {
                     TEIO_ERROR("Failed to create shared texture copy");
                     return nullptr;
                 }
@@ -548,72 +537,6 @@ namespace triengine_interop::surface::detail
             surface_resources() = default;
         }; // struct
 
-        bool _request_init(
-            ipc_client& cli, 
-            const int32_t initial_width, 
-            const int32_t initial_height, 
-            proto::packets::init_response_t& out)
-        {
-            // 초기화 요청 전송
-            packet_builder<proto::packets::init_request_t> req{ static_cast<uint32_t>(proto::packet_type::init_request) };
-            req.body()->magic = proto::PROTO_MAGIC;
-            req.body()->proto_version = proto::PROTO_VERSION;
-            req.body()->frame_width = initial_width;
-            req.body()->frame_height = initial_height;
-
-            constexpr std::chrono::seconds init_request_timeout{ 30 };
-
-            std::vector<uint8_t> rep_bytes;
-            if (std::errc{} != cli.send_request_sync(req.data(), req.size(), rep_bytes, init_request_timeout)) {
-                TEIO_ERROR("failed to send init request");
-                return false;
-            }
-
-            packet_view view{ rep_bytes.data(), rep_bytes.size() };
-            const auto* init_rep = view.body<proto::packets::init_response_t>();
-            if (!init_rep || init_rep->status != proto::packets::init_status::ok) {
-                TEIO_ERROR("init request rejected by renderer (status: {})"
-                    , init_rep ? static_cast<int>(init_rep->status) : -1);
-                return false;
-            }
-
-            out = *init_rep;
-            TEIO_DEBUG("init response (pid: {}, adapter: {:x}-{:x}, surface: {:p})"
-                , out.renderer_process_id
-                , out.target_adapter_luid.HighPart
-                , out.target_adapter_luid.LowPart
-                , out.surface_handle
-            );
-            return true;
-        }
-
-        bool _request_resize(
-            ipc_client& cli, 
-            const int32_t new_width, 
-            const int32_t new_height, 
-            HANDLE& out_surface_handle)
-        {
-            packet_builder<proto::packets::frame_resize_request_t> req{ static_cast<uint32_t>(proto::packet_type::frame_resize_request) };
-            req.body()->width = new_width;
-            req.body()->height = new_height;
-
-            std::vector<uint8_t> rep_bytes;
-            if (std::errc{} != cli.send_request_sync(req.data(), req.size(), rep_bytes)) {
-                TEIO_ERROR("failed to send resize request");
-                return false;
-            }
-
-            packet_view view{ rep_bytes.data(), rep_bytes.size() };
-            const auto* resize_rep = view.body<proto::packets::frame_resize_response_t>();
-            if (!resize_rep) {
-                TEIO_ERROR("malformed resize response");
-                return false;
-            }
-
-            out_surface_handle = resize_rep->surface_handle;
-            return true;
-        }
-
     private:
         bool _created{ false }; // whether create() has succeeded
         surface_render_options _config{}; // blit options (Y-flip / channel swap)
@@ -630,41 +553,37 @@ namespace triengine_interop::surface::detail
         ComPtr<ID3D11VertexShader> _vs; // full-screen-triangle vertex shader
         ComPtr<ID3D11PixelShader> _ps; // blit pixel shader (Y-flip / channel swap)
         ComPtr<ID3D11SamplerState> _sampler; // linear-clamp sampler for the blit
-
-        int32_t _width{ 0 }; // current frame width
-        int32_t _height{ 0 }; // current frame height
     };
 
-    shared_surface_consumer::shared_surface_consumer()
+    shared_texture_blitter::shared_texture_blitter()
         : _imp{ std::make_unique<impl>() }
     {}
 
-    shared_surface_consumer::~shared_surface_consumer() = default;
+    shared_texture_blitter::~shared_texture_blitter() = default;
 
-    ID3D11Device2* shared_surface_consumer::get_dx11_device() const noexcept { return _imp->get_dx11_device(); }
-    ID3D11DeviceContext2* shared_surface_consumer::get_dx11_context() const noexcept { return _imp->get_dx11_context(); }
-    int32_t shared_surface_consumer::get_width() const noexcept { return _imp->get_width(); }
-    int32_t shared_surface_consumer::get_height() const noexcept { return _imp->get_height(); }
+    ID3D11Device2* shared_texture_blitter::get_dx11_device() const noexcept { return _imp->get_dx11_device(); }
+    ID3D11DeviceContext2* shared_texture_blitter::get_dx11_context() const noexcept { return _imp->get_dx11_context(); }
+    SIZE shared_texture_blitter::get_frame_size() const noexcept { return _imp->get_frame_size(); }
 
-    bool shared_surface_consumer::is_created() const noexcept { return _imp->is_created(); }
+    bool shared_texture_blitter::is_created() const noexcept { return _imp->is_created(); }
 
-    bool shared_surface_consumer::create(ipc_client& cli, int32_t initial_width, int32_t initial_height, const surface_render_options& config)
+    bool shared_texture_blitter::create(DWORD renderer_process_id, LUID target_adapter_luid, HANDLE surface_handle, const surface_render_options& config)
     {
-        return _imp->create(cli, initial_width, initial_height, config);
+        return _imp->create(renderer_process_id, target_adapter_luid, surface_handle, config);
     }
 
-    void shared_surface_consumer::destroy() { _imp->destroy(); }
+    void shared_texture_blitter::destroy() { _imp->destroy(); }
 
-    bool shared_surface_consumer::sync_latest_frame(uint32_t timeout_ms) { return _imp->sync_latest_frame(timeout_ms); }
+    bool shared_texture_blitter::sync_latest_frame(uint32_t timeout_ms) { return _imp->sync_latest_frame(timeout_ms); }
 
-    void shared_surface_consumer::blit_to_render_target(ID3D11RenderTargetView* target_rtv, const D3D11_VIEWPORT& viewport)
+    void shared_texture_blitter::blit_to_render_target(ID3D11RenderTargetView* target_rtv, const D3D11_VIEWPORT& viewport)
     {
         _imp->blit_to_render_target(target_rtv, viewport);
     }
 
-    bool shared_surface_consumer::resize(ipc_client& cli, int32_t new_width, int32_t new_height)
+    bool shared_texture_blitter::reallocate_frame(HANDLE new_surface_handle)
     {
-        return _imp->resize(cli, new_width, new_height);
+        return _imp->reallocate_frame(new_surface_handle);
     }
 
 } // namespace triengine_interop::surface::detail
