@@ -4,6 +4,7 @@
 #include <future>
 #include <atomic>
 #include <unordered_map>
+#include <cassert>
 
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
@@ -390,10 +391,49 @@ void ipc_session::start()
     _recv_thread = std::thread{ &ipc_session::_do_recv, this };
 }
 
+// Precondition: never invoked on the receive thread. close() joins that thread, so
+// running it there would self-join. The only callers are owner-driven graceful closes
+// (`ipc_server::stop()` / `ipc_client::disconnect()`), which always run on a thread
+// other than the receive thread. To close from the receive thread or a packet callback,
+// use request_close() (asynchronous, no join).
 void ipc_session::close()
 {
+    assert(std::this_thread::get_id() != _recv_thread.get_id());
+
     std::scoped_lock lk{ _session_lock };
-    this->_do_close();
+
+    TEIPC_DEBUG("session close start..");
+
+    // Signal the receive loop to stop and best-effort notify the peer (fires once).
+    this->request_close();
+
+    // Wait for the receive thread to finish, then release the per-connection state.
+    if (_recv_thread.joinable()) {
+        TEIPC_TRACE("terminating recv thread..");
+        _recv_thread.join(); // NOTE: `_cb_close` will be called in this thread.
+    } else {
+        // recv thread not running, calling disconnect callback directly
+        if (_cb_close) {
+            _cb_close(shared_from_this());
+        }
+    }
+
+    _state.reset();
+    TEIPC_DEBUG("session close complete.");
+}
+
+// Flip the session to not-alive and best-effort notify the peer, without joining the
+// receive thread. The receive loop observes this on its next iteration, exits, and runs
+// `_cb_close`; the owner joins the thread later via `~ipc_session`. See the header for
+// the full contract.
+void ipc_session::request_close() noexcept
+{
+    // exchange() makes the disconnect notification fire at most once, even if close()
+    // and request_close() race or are both called.
+    if (_is_alive.exchange(false)) {
+        // Best-effort: the send may fail if the peer is already gone. Ignored on purpose.
+        static_cast<void>(_base->send_packet(detail::ipc_packet_type::disconnect, 0));
+    }
 }
 
 void ipc_session::set_notify_callback(notify_packet_callback cb)
@@ -427,7 +467,7 @@ std::errc ipc_session::send_notify(
         payload_size))
     {
         TEIPC_ERROR("failed to send notify");
-        this->_do_close();
+        this->request_close();
     }
 
     return std::errc{};
@@ -478,7 +518,7 @@ std::errc ipc_session::send_request_sync(
                 _state->req_map.erase(curr_req_id);
             }
 
-            this->_do_close();
+            this->request_close();
             return std::errc::not_connected;
         }
     }
@@ -525,39 +565,13 @@ std::errc ipc_session::send_request_sync(
     return std::errc{};
 }
 
-// NOTE: This function MUST be called while holding a session lock.
-void ipc_session::_do_close()
-{
-    TEIPC_DEBUG("session close start..");
-    const bool old_alive_flag = _is_alive.exchange(false);
-    if (_recv_thread.joinable()) {
-        TEIPC_TRACE("terminating recv thread..");
-        _recv_thread.join(); // NOTE: `_cb_close` will be called in this thread.
-    } else {
-        // recv thread not running, calling disconnect callback directly
-        if (_cb_close) {
-            _cb_close(shared_from_this());
-        }
-    }
-
-    if (old_alive_flag) {
-        TEIPC_TRACE("send disconnect packet..");
-        if (boost_ipc::no_error != _base->send_packet(detail::ipc_packet_type::disconnect, 0)) {
-            TEIPC_WARN("Failed to send disconnect packet, maybe peer already gone");
-        }
-    }
-
-    _state.reset();
-    TEIPC_DEBUG("session close complete.");
-}
-
 // NOTE: This function does NOT hold the context lock, be careful with synchronization.
 void ipc_session::_do_recv()
 {
     TEIPC_TRACE("IPC session recv started...");
     
     constexpr auto kHeartBeatInterval = 5s;
-    constexpr auto kHeartBeatTimeout = 20s;
+    constexpr auto kHeartBeatTimeout = 40s;
     constexpr auto kRecvTimeout = 100ms;
 
     auto last_sent_heartbeat = std::chrono::steady_clock::now();

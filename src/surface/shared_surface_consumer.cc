@@ -14,6 +14,7 @@
 #include <cstring>
 #include <memory>
 #include <system_error>
+#include <chrono>
 
 namespace triengine::ipc::surface
 {
@@ -556,8 +557,10 @@ namespace triengine::ipc::surface
             req.body()->frame_width = initial_width;
             req.body()->frame_height = initial_height;
 
+            constexpr std::chrono::seconds init_request_timeout{ 30 };
+
             std::vector<uint8_t> rep_bytes;
-            if (std::errc{} != cli.send_request_sync(req.data(), req.size(), rep_bytes)) {
+            if (std::errc{} != cli.send_request_sync(req.data(), req.size(), rep_bytes, init_request_timeout)) {
                 TEIPC_ERROR("failed to send init request");
                 return false;
             }

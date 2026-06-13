@@ -57,7 +57,21 @@ namespace triengine::ipc
         bool is_recv_finished() const noexcept;
 
         void start();
+
+        // Synchronously close the session: stop the receive loop, JOIN its thread, and
+        // send a disconnect notification to the peer. MUST be called from a thread other
+        // than the receive thread, since it joins that thread. This is the owner-driven
+        // graceful close (server stop / client disconnect).
         void close();
+
+        // Asynchronously request a close: flip the session to not-alive, send a
+        // best-effort disconnect notification to the peer, and return immediately WITHOUT
+        // joining the receive thread. Safe to call from any thread, including the receive
+        // thread itself or a packet callback. The receive loop observes this on its next
+        // iteration and exits; the session's owner (the server's reaper or the client)
+        // joins the receive thread later via ~ipc_session. For a synchronous shutdown that
+        // also waits for the receive thread to finish, use close() (non-receive thread only).
+        void request_close() noexcept;
 
         void set_notify_callback(notify_packet_callback cb);
         void set_request_callback(request_packet_callback cb);
@@ -75,7 +89,6 @@ namespace triengine::ipc
         );
 
     private:
-        void _do_close();
         void _do_recv();
 
     private:
