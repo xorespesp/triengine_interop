@@ -1,7 +1,7 @@
 #include <triengine_ipc/transport/ipc_server.hh>
 
-#include "ipc_detail.hh"
-#include "logger.hh"
+#include "detail/ipc_detail.hh"
+#include <triengine_ipc/utility/logger.hh>
 
 #include <thread>
 #include <atomic>

@@ -53,17 +53,18 @@ add_library(Triengine::ipc ALIAS ${TARGET_NAME})
 
 target_sources(${TARGET_NAME}
     PRIVATE
-        "src/ipc_session.cc"
-        "src/ipc_server.cc"
-        "src/ipc_client.cc"
-        "src/ipc_detail.hh"
-        "src/logger.hh"
+        "src/transport/ipc_session.cc"
+        "src/transport/ipc_server.cc"
+        "src/transport/ipc_client.cc"
+        "src/utility/logger.cc"
+        "src/transport/detail/ipc_detail.hh"
         "include/triengine_ipc/transport/ipc_session.hh"
         "include/triengine_ipc/transport/ipc_server.hh"
         "include/triengine_ipc/transport/ipc_client.hh"
         "include/triengine_ipc/proto/ipc_proto.hh"
         "include/triengine_ipc/proto/input_events.hh"
         "include/triengine_ipc/utility/bit.hh"
+        "include/triengine_ipc/utility/logger.hh"
 )
 
 target_compile_features(${TARGET_NAME} PUBLIC cxx_std_17)
@@ -73,16 +74,21 @@ target_include_directories(${TARGET_NAME} PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
-# Boost (transport) and fmt (logging) are implementation details used only by
-# the transport sources; no public header exposes them, so they are linked PRIVATE.
-# triengine_ipc therefore pulls in no external utility dependency of its own
-# (in particular, no xutl), and a consumer that links `Triengine::ipc` needs
-# nothing else. For a STATIC library CMake still propagates these to the
-# consumer's final link automatically.
-target_link_libraries(${TARGET_NAME} PRIVATE
-    Boost::interprocess
-    Boost::date_time
-    fmt::fmt
+# fmt is exposed through a public header (the logging utility), so it is linked
+# PUBLIC: a consumer of `Triengine::ipc` needs fmt on its include/link path. fmt is
+# lightweight and consumers (e.g. the Flutter plugin) already depend on it directly,
+# so this is the deliberate minimal external dependency.
+#
+# Boost.Interprocess (transport) stays PRIVATE: it is used only by the internal
+# transport sources and no public header exposes it, so it is bundled and hidden.
+# The dependency contract is therefore "link `Triengine::ipc` + fmt; Boost and the
+# DirectX libraries are bundled and need not be linked by the consumer".
+target_link_libraries(${TARGET_NAME}
+    PUBLIC
+        fmt::fmt
+    PRIVATE
+        Boost::interprocess
+        Boost::date_time
 )
 
 # Compile the library's own sources at the highest warning level and keep them
@@ -114,10 +120,9 @@ add_library(Triengine::ipc_surface ALIAS ${SURFACE_TARGET_NAME})
 
 target_sources(${SURFACE_TARGET_NAME}
     PRIVATE
-        "src/surface/shared_surface_consumer.cc"
+        "src/surface/detail/shared_surface_consumer.cc"
         "src/surface/shared_surface_server.cc"
         "src/surface/shared_surface_client.cc"
-        "src/logger.hh"
         "include/triengine_ipc/surface/detail/shared_surface_consumer.hh"
         "include/triengine_ipc/surface/surface_render_options.hh"
         "include/triengine_ipc/surface/shared_surface_server.hh"
@@ -127,8 +132,8 @@ target_sources(${SURFACE_TARGET_NAME}
 
 target_compile_features(${SURFACE_TARGET_NAME} PUBLIC cxx_std_17)
 
-# Boost/fmt are PRIVATE in the body, so the surface target links fmt itself for
-# its internal logging. d3d11/dxgi/d3dcompiler are PRIVATE: needed by the
+# fmt comes transitively from the body (linked PUBLIC there), so the surface target
+# does not list it again. d3d11/dxgi/d3dcompiler are PRIVATE: needed by the
 # consumer translation unit but never exposed through a public header.
 target_link_libraries(${SURFACE_TARGET_NAME}
     PUBLIC
@@ -137,7 +142,6 @@ target_link_libraries(${SURFACE_TARGET_NAME}
         d3d11
         dxgi
         d3dcompiler
-        fmt::fmt
 )
 
 # Same warning policy/rationale as the body (Flutter links with warnings-as-errors).

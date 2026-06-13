@@ -1,6 +1,6 @@
 ﻿#include <triengine_ipc/surface/shared_surface_client.hh>
 
-#include "../logger.hh"
+#include <triengine_ipc/utility/logger.hh>
 
 #include <utility>
 

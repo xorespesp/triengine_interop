@@ -1,7 +1,7 @@
 ﻿#include <triengine_ipc/surface/shared_surface_server.hh>
 #include <triengine_ipc/proto/ipc_proto.hh>
 
-#include "../logger.hh"
+#include <triengine_ipc/utility/logger.hh>
 
 #include <utility>
 #include <vector>

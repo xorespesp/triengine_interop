@@ -8,7 +8,10 @@ It ships two CMake targets.
 
 ## `Triengine::ipc` — transport + protocol core
 
-Dependency-light core (Boost / fmt linked `PRIVATE`, no graphics dependency).
+Dependency-light core: Boost is linked `PRIVATE` (bundled, transport-internal), `fmt`
+is `PUBLIC` (exposed by the logging utility), and there is no graphics dependency. The
+consumer contract is "link `Triengine::ipc` (`fmt` comes transitively); Boost and the
+DirectX libraries are bundled".
 
 - **transport** (`triengine::ipc`) — `ipc_server` / `ipc_client` / `ipc_session`
   carry notify and request-response messages over shared memory; `packet_builder` /
@@ -23,8 +26,6 @@ stays graphics-free). Under `triengine::ipc::surface`.
 
 - **`shared_surface_client`** (viewer side) — connects, runs the handshake, opens the
   renderer's shared texture, and blits each frame onto a render target the caller owns.
-- **`shared_surface_consumer`** (viewer side) — the DX11 interop core that
-  `shared_surface_client` wraps; use it directly to drive your own `ipc_client`.
 - **`shared_surface_server`** (renderer side) — owns an `ipc_server` and serves a
   single client (one shared scene, one viewer): the surface handshake plus decoded
   input events. The application implements `shared_surface_server::session_interface`

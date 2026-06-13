@@ -2,7 +2,7 @@
 #include <triengine_ipc/utility/unique_handle.hh>
 #include <triengine_ipc/proto/ipc_proto.hh>
 
-#include "../logger.hh"
+#include <triengine_ipc/utility/logger.hh>
 
 #include <dxgi1_2.h>
 #include <d3dcompiler.h>

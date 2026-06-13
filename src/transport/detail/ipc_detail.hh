@@ -15,7 +15,7 @@
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
-#include "logger.hh"
+#include <triengine_ipc/utility/logger.hh>
 #include <fmt/format.h>
 
 namespace boost_ipc = boost::interprocess;
