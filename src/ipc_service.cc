@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <cassert>
 #include <stdexcept>
+#include <chrono>
+#include <random>
 
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
@@ -127,17 +129,37 @@ namespace detail
     };
 
     // Handshake Request (Client -> Server)
-    // Includes the name of the queue where the client will receive responses.
     struct handshake_req_mq
     {
-        char server_name[64]{};
+        uint64_t client_nonce{ 0 };       // unique per connect attempt; correlates the reply
+        int64_t  deadline_unix_ns{ 0 };   // wall-clock (system_clock) expiry of the attempt
+        char     server_name[64]{};       // name of the queue where the client will receive responses.
     };
 
     // Handshake Response (Server -> Client)
     struct handshake_rep_mq
     {
-        char session_name[128]{};
+        uint64_t client_nonce{ 0 };       // echoes the request nonce
+        int64_t  deadline_unix_ns{ 0 };   // echoes the request deadline (for stale filtering)
+        char     session_name[128]{};
     };
+
+    // Wall-clock nanoseconds since epoch. The handshake reply queue is shared by all
+    // clients, so a deadline carried in a packet must be comparable across processes;
+    // system_clock reads the shared OS wall clock (unlike steady_clock, whose epoch is
+    // per-process).
+    inline int64_t system_now_unix_ns()
+    {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+    }
+
+    // A random 64-bit value identifying a single handshake attempt.
+    inline uint64_t make_handshake_nonce()
+    {
+        std::random_device rd;
+        return (static_cast<uint64_t>(rd()) << 32) ^ static_cast<uint64_t>(rd());
+    }
 
     /**
      * @class ipc_session_base
@@ -875,6 +897,18 @@ void ipc_server::_do_accept()
             continue;
         }
 
+        // Drop requests whose client already gave up (deadline passed) so we do not create
+        // a phantom session that no one will connect to.
+        //
+        // The request queue has a single reader (this server's accept loop), so every
+        // request received here is ours to handle. There is no wrong-recipient case like the
+        // client side has, so the server only discards stale requests and never re-queues
+        // them: a dropped request has no other reader that still needs it.
+        if (detail::system_now_unix_ns() > req_pck.deadline_unix_ns) {
+            TEIPC_WARN("Stale handshake request dropped (client deadline already passed)");
+            continue;
+        }
+
         std::shared_ptr<ipc_session> new_session;
         std::string new_session_name;
 
@@ -935,10 +969,12 @@ void ipc_server::_do_accept()
         // Send a handshake response(ACK) to the client
         {
             detail::handshake_rep_mq rep_pck{};
+            rep_pck.client_nonce = req_pck.client_nonce; // echo for reply correlation
+            rep_pck.deadline_unix_ns = req_pck.deadline_unix_ns; // echo for stale filtering
             ::strncpy_s(
-                rep_pck.session_name, 
-                sizeof(rep_pck.session_name), 
-                new_session_name.c_str(), 
+                rep_pck.session_name,
+                sizeof(rep_pck.session_name),
+                new_session_name.c_str(),
                 new_session_name.size()
             );
 
@@ -1005,20 +1041,60 @@ bool ipc_client::connect(
         return false;
     }
 
-    // Send a handshake request to the server and wait for a response.
+    // Send a handshake request carrying a unique nonce and an absolute wall-clock deadline,
+    // then wait for the reply that echoes our nonce. The reply queue is shared by all
+    // clients, so a reply meant for another client can arrive here: put it back if its owner
+    // may still be waiting (deadline not yet passed), or drop it if expired so it cannot
+    // circulate forever. This correlates replies without a per-client queue.
+    const uint64_t client_nonce = detail::make_handshake_nonce();
+    const auto deadline_tp = std::chrono::system_clock::now() + timeout;
+
     detail::handshake_req_mq handshake_req_pck{};
+    handshake_req_pck.client_nonce = client_nonce;
+    handshake_req_pck.deadline_unix_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(deadline_tp.time_since_epoch()).count();
     std::snprintf(handshake_req_pck.server_name, sizeof(handshake_req_pck.server_name), "%s", server_name.data());
     mq_handshake_c2s->send(&handshake_req_pck, sizeof(handshake_req_pck), 0);
-    detail::handshake_rep_mq handshake_rep_pck;
-    unsigned int priority;
-    boost_ipc::message_queue::size_type recvd_size;
-    if (!mq_handshake_s2c->timed_receive(
-        &handshake_rep_pck, 
-        sizeof(handshake_rep_pck), 
-        recvd_size, 
-        priority,
-        boost::posix_time::second_clock::universal_time() + boost::posix_time::milliseconds(timeout.count())))
-    {
+
+    const boost::posix_time::ptime recv_deadline =
+        boost::posix_time::second_clock::universal_time() + boost::posix_time::milliseconds(timeout.count());
+
+    detail::handshake_rep_mq handshake_rep_pck{};
+    bool got_response = false;
+    while (true) {
+        unsigned int priority;
+        boost_ipc::message_queue::size_type recvd_size;
+        if (!mq_handshake_s2c->timed_receive(
+            &handshake_rep_pck,
+            sizeof(handshake_rep_pck),
+            recvd_size,
+            priority,
+            recv_deadline))
+        {
+            break; // overall deadline reached without our reply
+        }
+
+        if (handshake_rep_pck.client_nonce == client_nonce) {
+            got_response = true;
+            break;
+        }
+
+        // Not our reply: re-queue it for its owner if still valid, otherwise drop it.
+        //
+        // This reply queue is read by every connecting client, so a reply destined for
+        // another client can legitimately land in our receive. A receive is a destructive
+        // dequeue with no recipient targeting, so discarding a still-valid reply would
+        // destroy it for its owner and starve that client. We therefore put valid replies
+        // back; only an expired one (its owner has already given up) is safe to drop. This
+        // re-queue is needed precisely because the reply queue has multiple readers, unlike
+        // the server's single-reader request queue.
+        if (detail::system_now_unix_ns() <= handshake_rep_pck.deadline_unix_ns) {
+            mq_handshake_s2c->send(&handshake_rep_pck, sizeof(handshake_rep_pck), 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1)); // avoid a tight re-read spin
+        }
+    }
+
+    if (!got_response) {
         TEIPC_ERROR("Handshake with server '{}' timed out.", server_name);
         return false;
     }
