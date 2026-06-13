@@ -778,9 +778,14 @@ void ipc_server::context_deleter::operator()(ipc_server::context_t* p) const
     delete p;
 }
 
-ipc_server::ipc_server()
+std::shared_ptr<ipc_server> ipc_server::make()
 {
+    // Not std::make_shared: the constructor is private and only this member can reach it.
+    return std::shared_ptr<ipc_server>{ new ipc_server{} };
 }
+
+ipc_server::ipc_server()
+{}
 
 ipc_server::~ipc_server()
 {
@@ -1001,9 +1006,14 @@ void ipc_client::context_deleter::operator()(context_t* p) const
     delete p;
 }
 
-ipc_client::ipc_client()
+std::shared_ptr<ipc_client> ipc_client::make()
 {
+    // Not std::make_shared: the constructor is private and only this member can reach it.
+    return std::shared_ptr<ipc_client>{ new ipc_client{} };
 }
+
+ipc_client::ipc_client()
+{}
 
 ipc_client::~ipc_client()
 {

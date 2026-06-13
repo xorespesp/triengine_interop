@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <functional>
 #include <system_error>
 #include <optional>
@@ -120,7 +120,14 @@ namespace triengine::ipc
         using  context_unique_ptr = std::unique_ptr<context_t, context_deleter>;
 
     public:
+        // ipc_server hands weak references to itself to its sessions (via shared_from_this),
+        // so it must be owned by a shared_ptr. Construct it only through this factory.
+        static std::shared_ptr<ipc_server> make();
+
+    private:
         ipc_server();
+
+    public:
         ~ipc_server();
 
         ipc_server(const ipc_server&) = delete;
@@ -173,7 +180,14 @@ namespace triengine::ipc
         using context_unique_ptr = std::unique_ptr<context_t, context_deleter>;
 
     public:
+        // ipc_client hands weak references to itself to its session (via shared_from_this),
+        // so it must be owned by a shared_ptr. Construct it only through this factory.
+        static std::shared_ptr<ipc_client> make();
+
+    private:
         ipc_client();
+
+    public:
         ~ipc_client();
 
         ipc_client(const ipc_client&) = delete;

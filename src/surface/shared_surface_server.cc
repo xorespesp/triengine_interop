@@ -191,7 +191,7 @@ namespace triengine::ipc::surface
         std::shared_ptr<session_interface> iface)
     {
         _iface = std::move(iface);
-        _server = std::make_shared<ipc_server>();
+        _server = ipc_server::make();
 
         _server->set_session_connect_callback(
             [this](std::shared_ptr<ipc_session> session)

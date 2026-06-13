@@ -31,7 +31,7 @@ namespace triengine::ipc::surface
             return false;
         }
 
-        auto client = std::make_shared<ipc_client>();
+        auto client = ipc_client::make();
         if (_on_disconnect) {
             client->set_disconnect_callback(_on_disconnect);
         }
