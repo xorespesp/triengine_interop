@@ -7,7 +7,7 @@
 
 namespace triengine_interop::surface::proto
 {
-    // Protocol identity. Both peers (renderer process and client) MUST agree on these.
+    // Protocol identity. Both endpoints (the surface producer and consumer) MUST agree on these.
     // The values are carried in the init handshake so a mismatch can be rejected loudly
     // instead of silently corrupting memory when the wire layout diverges between builds.
     inline constexpr uint32_t PROTO_MAGIC = 0x54564950u; // 'TVIP'
@@ -156,7 +156,7 @@ namespace triengine_interop::surface::proto
             float yoffset;
         };
 
-        // packet_type::mouse_click_event
+        // packet_type::mouse_button_event
         struct mouse_button_event_t
         {
             // Win32 screen coordinates
@@ -170,8 +170,7 @@ namespace triengine_interop::surface::proto
 
     } // namespace packets
 
-    // Client-side input helpers: translate Win32 key codes and build input notify packets.
-    
+    // Consumer-side input helpers: translate Win32 key codes and build input notify packets.
     inline key_button_type translate_vkcode(DWORD vkcode)
     {
         if (vkcode >= 'A' && vkcode <= 'Z') {

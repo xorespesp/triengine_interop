@@ -210,8 +210,9 @@ namespace triengine_interop::transport
                     // accept loop reaps it once its receive thread has finished, so it is never
                     // destroyed on its own receive thread.
                     //
-                    // Skip the notification when the server is no longer listening (an explicit
-                    // stop() is tearing sessions down), matching the previous behavior.
+                    // Skip the notification when the server is no longer listening: an explicit
+                    // stop() is already tearing every session down, so a per-session disconnect
+                    // callback would be redundant (and stop() runs after the listening flag clears).
                     const bool is_server_stopped = !self->_is_listening;
                     if (!is_server_stopped) {
                         auto session_disconn_cb = self->_on_session_disconnect;

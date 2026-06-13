@@ -235,7 +235,7 @@ namespace triengine_interop::surface::detail
         {
             ComPtr<ID3D11Texture2D> texture;
 
-            // OpenSharedResource1(혹은 OpenSharedResourceByName)를 사용하여 client측에서 생성한 NT 핸들 획득 & 공유 텍스처 생성
+            // OpenSharedResource1(혹은 OpenSharedResourceByName)를 사용하여 렌더러 프로세스가 생성한 NT 핸들 획득 & 공유 텍스처 생성
             // (OpenSharedResource1 함수를 사용하는 경우, DuplicateHandle을 사용하여 전달받은 공유 텍스처 핸들을 현재 프로세스에서 유효한 핸들로 복제해야 함)
             HANDLE duplicated_handle{};
             if (!::DuplicateHandle(
