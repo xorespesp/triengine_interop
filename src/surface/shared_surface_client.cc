@@ -24,7 +24,7 @@ namespace triengine::ipc::surface
         const std::string_view server_name,
         const int32_t initial_width,
         const int32_t initial_height,
-        const consumer_config& config)
+        const surface_render_options& config)
     {
         if (this->is_connected()) {
             TEIPC_ERROR("client already connected");

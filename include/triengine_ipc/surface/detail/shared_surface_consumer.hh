@@ -6,15 +6,10 @@
 #include <memory>
 
 #include <triengine_ipc/transport/ipc_client.hh>
+#include <triengine_ipc/surface/surface_render_options.hh>
 
-namespace triengine::ipc::surface
+namespace triengine::ipc::surface::detail
 {
-    struct consumer_config
-    {
-        bool flip_y = true;                // OpenGL (bottom-left origin) -> DX (top-left)
-        bool convert_rgba_to_bgra = false; // swap R/B channels in the blit shader
-    };
-
     // Client-side consumer of a renderer process's shared DX11 surface.
     //
     // Encapsulates everything a viewer client needs to display the renderer's
@@ -50,7 +45,7 @@ namespace triengine::ipc::surface
             ipc_client& cli,
             int32_t initial_width,
             int32_t initial_height,
-            const consumer_config& config = {}
+            const surface_render_options& config = {}
         );
 
         void destroy();
@@ -73,4 +68,4 @@ namespace triengine::ipc::surface
         std::unique_ptr<impl> _imp;
     };
 
-} // namespace triengine::ipc::surface
+} // namespace triengine::ipc::surface::detail

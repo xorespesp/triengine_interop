@@ -7,7 +7,7 @@
 #include <string_view>
 #include <stdexcept>
 #include <type_traits>
-#include <triengine_ipc/detail/bit.hh>
+#include <triengine_ipc/utility/bit.hh>
 
 namespace triengine::ipc::proto
 {
@@ -230,19 +230,19 @@ namespace triengine::ipc
         }
 
         const proto::packet_header_t* header() const noexcept {
-            return detail::bit_cast<proto::packet_header_t*>(_pck_buff.data());
+            return utility::bit_cast<proto::packet_header_t*>(_pck_buff.data());
         }
 
         proto::packet_header_t* header() noexcept {
-            return detail::bit_cast<proto::packet_header_t*>(_pck_buff.data());
+            return utility::bit_cast<proto::packet_header_t*>(_pck_buff.data());
         }
 
         const _PckBody* body() const noexcept {
-            return detail::bit_cast<_PckBody*>(_pck_buff.data() + sizeof(proto::packet_header_t));
+            return utility::bit_cast<_PckBody*>(_pck_buff.data() + sizeof(proto::packet_header_t));
         }
 
         _PckBody* body() noexcept {
-            return detail::bit_cast<_PckBody*>(_pck_buff.data() + sizeof(proto::packet_header_t));
+            return utility::bit_cast<_PckBody*>(_pck_buff.data() + sizeof(proto::packet_header_t));
         }
 
         const uint8_t* data() const noexcept {
@@ -288,11 +288,11 @@ namespace triengine::ipc
                 return nullptr;
             }
 
-            return detail::bit_cast<const _PckBody*>(_data_view.data() + sizeof(proto::packet_header_t));
+            return utility::bit_cast<const _PckBody*>(_data_view.data() + sizeof(proto::packet_header_t));
         }
 
         const uint8_t* data() const noexcept {
-            return detail::bit_cast<const uint8_t*>(_data_view.data());
+            return utility::bit_cast<const uint8_t*>(_data_view.data());
         }
 
         size_t size() const noexcept {
@@ -301,11 +301,11 @@ namespace triengine::ipc
 
     private:
         inline const proto::packet_header_t* _header() const noexcept {
-            return detail::bit_cast<proto::packet_header_t*>(_data_view.data());
+            return utility::bit_cast<proto::packet_header_t*>(_data_view.data());
         }
 
         inline proto::packet_header_t* _header() noexcept {
-            return detail::bit_cast<proto::packet_header_t*>(_data_view.data());
+            return utility::bit_cast<proto::packet_header_t*>(_data_view.data());
         }
 
         inline bool _validate_format() const noexcept
@@ -318,7 +318,7 @@ namespace triengine::ipc
                 return false;
             }
 
-            const auto header = detail::bit_cast<const proto::packet_header_t*>(_data_view.data());
+            const auto header = utility::bit_cast<const proto::packet_header_t*>(_data_view.data());
             if (_data_view.size() != header->body_size + sizeof(proto::packet_header_t)) {
                 return false;
             }

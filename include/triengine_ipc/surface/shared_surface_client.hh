@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <triengine_ipc/transport/ipc_client.hh>
-#include <triengine_ipc/surface/shared_surface_consumer.hh>
+#include <triengine_ipc/surface/detail/shared_surface_consumer.hh>
+#include <triengine_ipc/surface/surface_render_options.hh>
 #include <triengine_ipc/proto/ipc_proto.hh>
 #include <triengine_ipc/proto/input_events.hh>
 
@@ -42,7 +43,7 @@ namespace triengine::ipc::surface
             std::string_view server_name,
             int32_t initial_width,
             int32_t initial_height,
-            const consumer_config& config = {}
+            const surface_render_options& config = {}
         );
 
         void disconnect();
@@ -100,7 +101,7 @@ namespace triengine::ipc::surface
 
     private:
         std::shared_ptr<ipc_client> _client;
-        shared_surface_consumer _consumer;
+        detail::shared_surface_consumer _consumer;
         std::function<void()> _on_disconnect;
     };
 

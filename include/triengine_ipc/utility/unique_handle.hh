@@ -1,11 +1,11 @@
-#pragma once
+﻿#pragma once
 #include <Windows.h>
 #include <memory>
 
 // Minimal RAII wrapper for a Win32 NT handle, kept dependency-free so the surface
 // toolkit owns its handle lifetime without pulling in any external utility library.
 
-namespace triengine::ipc::surface::detail
+namespace triengine::ipc::utility
 {
     struct handle_deleter
     {
@@ -19,4 +19,4 @@ namespace triengine::ipc::surface::detail
 
     using unique_handle = std::unique_ptr<std::remove_pointer_t<HANDLE>, handle_deleter>;
 
-} // namespace triengine::ipc::surface::detail
+} // namespace

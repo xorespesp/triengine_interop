@@ -3,7 +3,7 @@
 #include <memory>
 #include <cstring>
 
-namespace triengine::ipc::detail
+namespace triengine::ipc::utility
 {
     template <class _Dst, class _Src>
     static inline auto bit_cast(_Src src) noexcept

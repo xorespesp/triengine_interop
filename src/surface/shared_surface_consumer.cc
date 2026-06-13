@@ -1,5 +1,5 @@
-﻿#include <triengine_ipc/surface/shared_surface_consumer.hh>
-#include <triengine_ipc/surface/detail/unique_handle.hh>
+﻿#include <triengine_ipc/surface/detail/shared_surface_consumer.hh>
+#include <triengine_ipc/utility/unique_handle.hh>
 #include <triengine_ipc/proto/ipc_proto.hh>
 
 #include "../logger.hh"
@@ -16,7 +16,7 @@
 #include <system_error>
 #include <chrono>
 
-namespace triengine::ipc::surface
+namespace triengine::ipc::surface::detail
 {
     namespace proto = triengine::ipc::proto;
     using Microsoft::WRL::ComPtr;
@@ -114,7 +114,7 @@ namespace triengine::ipc::surface
         // Compile the full-screen blit shaders and create the sampler.
         bool build_blit_pipeline(
             ID3D11Device2* const device,
-            const consumer_config& config,
+            const surface_render_options& config,
             ComPtr<ID3D11VertexShader>& out_vs,
             ComPtr<ID3D11PixelShader>& out_ps,
             ComPtr<ID3D11SamplerState>& out_sampler)
@@ -255,7 +255,7 @@ namespace triengine::ipc::surface
                 return nullptr;
             }
 
-            detail::unique_handle duplicated_handle_guard{ duplicated_handle }; // 핸들의 자동 해제를 위한 RAII 핸들 래퍼
+            utility::unique_handle duplicated_handle_guard{ duplicated_handle }; // 핸들의 자동 해제를 위한 RAII 핸들 래퍼
             if (HRESULT hr = device->OpenSharedResource1(
                 duplicated_handle_guard.get(),
                 IID_PPV_ARGS(&texture));
@@ -287,7 +287,7 @@ namespace triengine::ipc::surface
             ipc_client& cli, 
             const int32_t initial_width, 
             const int32_t initial_height, 
-            const consumer_config& config)
+            const surface_render_options& config)
         {
             if (_created) {
                 TEIPC_ERROR("consumer already created");
@@ -301,7 +301,7 @@ namespace triengine::ipc::surface
             }
 
             // 2. open the renderer process (needed to duplicate the shared handle)
-            detail::unique_handle renderer_process_handle{ ::OpenProcess(
+            utility::unique_handle renderer_process_handle{ ::OpenProcess(
                 PROCESS_DUP_HANDLE | SYNCHRONIZE, 
                 FALSE, 
                 init_rep.renderer_process_id
@@ -612,9 +612,9 @@ namespace triengine::ipc::surface
 
     private:
         bool _created{ false }; // whether create() has succeeded
-        consumer_config _config{}; // blit options (Y-flip / channel swap)
+        surface_render_options _config{}; // blit options (Y-flip / channel swap)
 
-        detail::unique_handle _renderer_process_handle; // renderer process, used to duplicate shared-surface handles
+        utility::unique_handle _renderer_process_handle; // renderer process, used to duplicate shared-surface handles
 
         ComPtr<ID3D11Device2> _device; // device created on the renderer's adapter
         ComPtr<ID3D11DeviceContext2> _context; // immediate context of `_device`
@@ -644,7 +644,7 @@ namespace triengine::ipc::surface
 
     bool shared_surface_consumer::is_created() const noexcept { return _imp->is_created(); }
 
-    bool shared_surface_consumer::create(ipc_client& cli, int32_t initial_width, int32_t initial_height, const consumer_config& config)
+    bool shared_surface_consumer::create(ipc_client& cli, int32_t initial_width, int32_t initial_height, const surface_render_options& config)
     {
         return _imp->create(cli, initial_width, initial_height, config);
     }
@@ -663,4 +663,4 @@ namespace triengine::ipc::surface
         return _imp->resize(cli, new_width, new_height);
     }
 
-} // namespace triengine::ipc::surface
+} // namespace triengine::ipc::surface::detail

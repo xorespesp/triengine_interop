@@ -63,7 +63,7 @@ target_sources(${TARGET_NAME}
         "include/triengine_ipc/transport/ipc_client.hh"
         "include/triengine_ipc/proto/ipc_proto.hh"
         "include/triengine_ipc/proto/input_events.hh"
-        "include/triengine_ipc/detail/bit.hh"
+        "include/triengine_ipc/utility/bit.hh"
 )
 
 target_compile_features(${TARGET_NAME} PUBLIC cxx_std_17)
@@ -118,10 +118,11 @@ target_sources(${SURFACE_TARGET_NAME}
         "src/surface/shared_surface_server.cc"
         "src/surface/shared_surface_client.cc"
         "src/logger.hh"
-        "include/triengine_ipc/surface/shared_surface_consumer.hh"
+        "include/triengine_ipc/surface/detail/shared_surface_consumer.hh"
+        "include/triengine_ipc/surface/surface_render_options.hh"
         "include/triengine_ipc/surface/shared_surface_server.hh"
         "include/triengine_ipc/surface/shared_surface_client.hh"
-        "include/triengine_ipc/surface/detail/unique_handle.hh"
+        "include/triengine_ipc/utility/unique_handle.hh"
 )
 
 target_compile_features(${SURFACE_TARGET_NAME} PUBLIC cxx_std_17)
