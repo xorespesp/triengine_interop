@@ -113,7 +113,7 @@ namespace triengine::ipc::surface
 
                         HANDLE new_surface_handle = nullptr;
                         try {
-                            new_surface_handle = iface.on_frame_resize(body->width, body->height);
+                            new_surface_handle = iface.on_frame_resize_event(body->width, body->height);
                         } catch (const std::exception& e) {
                             TEIPC_ERROR("frame resize failed: {}", e.what());
                             new_surface_handle = nullptr;
@@ -150,7 +150,7 @@ namespace triengine::ipc::surface
                     {
                         const auto* body = pck.body<proto::packets::mouse_button_event_t>();
                         if (body) {
-                            iface.on_mouse_button(body->x, body->y, body->button, body->action, body->mods);
+                            iface.on_mouse_button_event(body->x, body->y, body->button, body->action, body->mods);
                         }
                         break;
                     }
@@ -158,7 +158,7 @@ namespace triengine::ipc::surface
                     {
                         const auto* body = pck.body<proto::packets::mouse_move_event_t>();
                         if (body) {
-                            iface.on_mouse_move(body->x, body->y, body->mods);
+                            iface.on_mouse_move_event(body->x, body->y, body->mods);
                         }
                         break;
                     }
@@ -166,7 +166,7 @@ namespace triengine::ipc::surface
                     {
                         const auto* body = pck.body<proto::packets::mouse_scroll_event_t>();
                         if (body) {
-                            iface.on_mouse_scroll(body->yoffset);
+                            iface.on_mouse_scroll_event(body->yoffset);
                         }
                         break;
                     }
@@ -186,9 +186,11 @@ namespace triengine::ipc::surface
         this->stop();
     }
 
-    void shared_surface_server::start(std::string_view server_name, session_interface& iface)
+    void shared_surface_server::start(
+        std::string_view server_name, 
+        std::shared_ptr<session_interface> iface)
     {
-        _iface = &iface;
+        _iface = std::move(iface);
         _server = std::make_shared<ipc_server>();
 
         _server->set_session_connect_callback(
@@ -220,7 +222,7 @@ namespace triengine::ipc::surface
             _server->stop();
             _server.reset();
         }
-        _iface = nullptr;
+        _iface.reset();
     }
 
 } // namespace triengine::ipc::surface
