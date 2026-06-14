@@ -37,7 +37,7 @@ namespace triengine_interop::surface
             // the failure to the consumer and rejects the connection.
             //
             // `requested_max_fps` is the consumer's requested frame-rate cap, relayed
-            // verbatim (0 == no preference; the renderer picks a fallback).
+            // verbatim (0 == uncapped, no limit).
             virtual void on_session_init(
                 SIZE initial_frame_size,
                 uint32_t requested_max_fps,
@@ -53,8 +53,8 @@ namespace triengine_interop::surface
                 HANDLE& out_surface_handle
             ) = 0;
 
-            // Decoded input events, already parsed into their fields (`pos` is in Win32
-            // screen coordinates; yoffset matches GLFW's scroll value).
+            // Decoded mouse events.
+            // (NOTE: `pos` is in Win32 screen coordinates; yoffset matches GLFW's scroll value).
             virtual void on_mouse_button_event(
                 POINT pos,
                 proto::mouse_button_type button,
@@ -68,6 +68,13 @@ namespace triengine_interop::surface
             ) = 0;
 
             virtual void on_mouse_scroll_event(float yoffset) = 0;
+
+            // Decoded keyboard event.
+            virtual void on_key_event(
+                proto::key_button_type key,
+                proto::button_action_type action,
+                proto::modifier_button_type mods
+            ) = 0;
 
             // Fallback for notify packets not covered by the typed handlers above;
             // receives the raw packet id and bytes.

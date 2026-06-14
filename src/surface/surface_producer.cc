@@ -184,6 +184,14 @@ namespace triengine_interop::surface
                         }
                         break;
                     }
+                    case proto::packet_type::key_event:
+                    {
+                        const auto* body = pck.body<proto::packets::key_event_t>();
+                        if (body && body->key != proto::KEY_UNKNOWN) {
+                            iface.on_key_event(body->key, body->action, body->mods);
+                        }
+                        break;
+                    }
                     default:
                         iface.on_session_notify(id, data);
                         break;

@@ -19,8 +19,8 @@ namespace triengine_interop::surface
         // Surveys all active monitors and returns the highest refresh rate scaled by the
         // over-produce margin, to be used as the adaptive frame-rate cap. Taking the maximum
         // across monitors keeps the cap adequate if the consumer window is later moved to a
-        // faster display (the handshake samples this only once, at connect). Returns 0 if no
-        // refresh rate could be determined, letting the renderer fall back to its own choice.
+        // faster display (the handshake samples this only once, at connect). 
+        // Falls back to a fixed cap if no refresh rate could be determined.
         uint32_t adaptive_max_fps()
         {
             uint32_t max_hz{ 0 };
@@ -49,8 +49,9 @@ namespace triengine_interop::surface
             );
 
             if (max_hz == 0) {
-                TEIO_WARN("failed to determine display refresh rate, adaptive max_fps disabled");
-                return 0; // unknown -> let the renderer fall back
+                constexpr uint32_t kFallbackMaxFps{ 200 };
+                TEIO_WARN("failed to determine display refresh rate, falling back to {} fps", kFallbackMaxFps);
+                return kFallbackMaxFps;
             }
 
             // Over-produce margin applied on top of the display refresh rate. The producer and
@@ -299,6 +300,18 @@ namespace triengine_interop::surface
     std::errc surface_consumer::send_mouse_scroll_event(float yoffset)
     {
         const auto pck = proto::make_mouse_scroll_event(yoffset);
+        return this->send_notify(pck.data(), pck.size());
+    }
+
+    std::errc surface_consumer::send_key_event(
+        const proto::key_button_type key,
+        const proto::button_action_type action,
+        const proto::modifier_button_type mods)
+    {
+        if (key == proto::KEY_UNKNOWN) {
+            return std::errc::invalid_argument;
+        }
+        const auto pck = proto::make_key_event(key, action, mods);
         return this->send_notify(pck.data(), pck.size());
     }
 

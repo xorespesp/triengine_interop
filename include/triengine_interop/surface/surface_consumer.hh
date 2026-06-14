@@ -96,6 +96,12 @@ namespace triengine_interop::surface
 
         std::errc send_mouse_scroll_event(float yoffset);
 
+        std::errc send_key_event(
+            proto::key_button_type key,
+            proto::button_action_type action,
+            proto::modifier_button_type mods
+        );
+
         // Notified when the renderer process disconnects. May be set before connect();
         // it is applied to the connection as soon as it is established.
         void set_disconnect_callback(std::function<void()> cb);

@@ -29,7 +29,7 @@ namespace triengine_interop::surface::proto
 
     enum key_button_type
     {
-        KEY_UNKNOWN,
+        KEY_UNKNOWN = 0,
 
         KEY_A, KEY_B, KEY_C, KEY_D, KEY_E,
         KEY_F, KEY_G, KEY_H, KEY_I, KEY_J,
@@ -57,6 +57,26 @@ namespace triengine_interop::surface::proto
         KEY_ADD,
         KEY_SUBTRACT,
         KEY_DIVIDE,
+
+        KEY_TAB,
+        KEY_DELETE,
+        KEY_INSERT,
+        KEY_HOME,
+        KEY_END,
+        KEY_PAGE_UP,
+        KEY_PAGE_DOWN,
+
+        KEY_MINUS,      // - _
+        KEY_EQUAL,      // = +
+        KEY_COMMA,      // , <
+        KEY_PERIOD,     // . >
+        KEY_SEMICOLON,  // ; :
+        KEY_SLASH,      // / ?
+        KEY_BACKSLASH,  // \ |
+        KEY_LBRACKET,   // [ {
+        KEY_RBRACKET,   // ] }
+        KEY_APOSTROPHE, // ' "
+        KEY_GRAVE,      // ` ~
         // ...
     };
 
@@ -98,6 +118,7 @@ namespace triengine_interop::surface::proto
         mouse_move_event,
         mouse_scroll_event,
         mouse_button_event,
+        key_event,
     };
 
     namespace packets
@@ -108,8 +129,7 @@ namespace triengine_interop::surface::proto
             uint32_t proto_version; // must equal PROTO_VERSION
             int32_t frame_width;
             int32_t frame_height;
-            // Frame-rate cap requested by the consumer (0 == renderer picks a fallback).
-            uint32_t requested_max_fps;
+            uint32_t requested_max_fps; // Frame-rate cap requested by the consumer (0 == uncapped, no limit).
         };
         static_assert(sizeof(init_request_t) == 20);
 
@@ -170,41 +190,19 @@ namespace triengine_interop::surface::proto
             modifier_button_type mods;
         };
 
+        // packet_type::key_event
+        struct key_event_t
+        {
+            key_button_type key;       // translated via translate_vkcode()
+            button_action_type action; // PRESS / RELEASE / REPEAT
+            modifier_button_type mods;
+        };
+
     } // namespace packets
 
-    // Consumer-side input helpers: translate Win32 key codes and build input notify packets.
-    inline key_button_type translate_vkcode(DWORD vkcode)
-    {
-        if (vkcode >= 'A' && vkcode <= 'Z') {
-            return static_cast<key_button_type>(KEY_A + (vkcode - 'A'));
-        }
-
-        if (vkcode >= '0' && vkcode <= '9') {
-            return static_cast<key_button_type>(KEY_0 + (vkcode - '0'));
-        }
-
-        if (vkcode >= VK_F1 && vkcode <= VK_F12) {
-            return static_cast<key_button_type>(KEY_F1 + (vkcode - VK_F1));
-        }
-
-        switch (vkcode) {
-        case VK_ESCAPE: return KEY_ESCAPE;
-        case VK_BACK: return KEY_BACK;
-        case VK_RETURN: return KEY_RETURN;
-        case VK_SPACE: return KEY_SPACE;
-        case VK_LEFT: return KEY_LEFT;
-        case VK_UP: return KEY_UP;
-        case VK_RIGHT: return KEY_RIGHT;
-        case VK_DOWN: return KEY_DOWN;
-        case VK_MULTIPLY: return KEY_MULTIPLY;
-        case VK_ADD:  return KEY_ADD;
-        case VK_SUBTRACT: return KEY_SUBTRACT;
-        case VK_DIVIDE: return KEY_DIVIDE;
-        default: break;
-        }
-
-        return KEY_UNKNOWN;
-    }
+    //
+    // Consumer-side input helpers
+    //
 
     inline transport::packet_builder<packets::mouse_button_event_t> make_mouse_button_event(
         int32_t x,
@@ -238,6 +236,75 @@ namespace triengine_interop::surface::proto
     {
         transport::packet_builder<packets::mouse_scroll_event_t> pck{ static_cast<uint32_t>(packet_type::mouse_scroll_event) };
         pck.body()->yoffset = yoffset;
+        return pck;
+    }
+
+    inline key_button_type translate_vkcode(DWORD vkcode)
+    {
+        if (vkcode >= 'A' && vkcode <= 'Z') {
+            return static_cast<key_button_type>(KEY_A + (vkcode - 'A'));
+        }
+
+        if (vkcode >= '0' && vkcode <= '9') {
+            return static_cast<key_button_type>(KEY_0 + (vkcode - '0'));
+        }
+
+        // Numpad digits fold onto the main-row digits (only seen when NumLock is on;
+        // otherwise these keys arrive as Home/End/arrows etc. with their own vkcodes).
+        if (vkcode >= VK_NUMPAD0 && vkcode <= VK_NUMPAD9) {
+            return static_cast<key_button_type>(KEY_0 + (vkcode - VK_NUMPAD0));
+        }
+
+        if (vkcode >= VK_F1 && vkcode <= VK_F12) {
+            return static_cast<key_button_type>(KEY_F1 + (vkcode - VK_F1));
+        }
+
+        switch (vkcode) {
+        case VK_ESCAPE: return KEY_ESCAPE;
+        case VK_BACK: return KEY_BACK;
+        case VK_RETURN: return KEY_RETURN;
+        case VK_SPACE: return KEY_SPACE;
+        case VK_LEFT: return KEY_LEFT;
+        case VK_UP: return KEY_UP;
+        case VK_RIGHT: return KEY_RIGHT;
+        case VK_DOWN: return KEY_DOWN;
+        case VK_MULTIPLY: return KEY_MULTIPLY;
+        case VK_ADD:  return KEY_ADD;
+        case VK_SUBTRACT: return KEY_SUBTRACT;
+        case VK_DIVIDE: return KEY_DIVIDE;
+        case VK_TAB: return KEY_TAB;
+        case VK_DELETE: return KEY_DELETE;
+        case VK_INSERT: return KEY_INSERT;
+        case VK_HOME: return KEY_HOME;
+        case VK_END: return KEY_END;
+        case VK_PRIOR: return KEY_PAGE_UP;
+        case VK_NEXT: return KEY_PAGE_DOWN;
+        case VK_OEM_MINUS: return KEY_MINUS;    // - _
+        case VK_OEM_PLUS: return KEY_EQUAL;     // = +
+        case VK_OEM_COMMA: return KEY_COMMA;    // , <
+        case VK_OEM_PERIOD: return KEY_PERIOD;  // . >
+        case VK_OEM_1: return KEY_SEMICOLON;    // ; :
+        case VK_OEM_2: return KEY_SLASH;        // / ?
+        case VK_OEM_3: return KEY_GRAVE;        // ` ~
+        case VK_OEM_4: return KEY_LBRACKET;     // [ {
+        case VK_OEM_5: return KEY_BACKSLASH;    // \ |
+        case VK_OEM_6: return KEY_RBRACKET;     // ] }
+        case VK_OEM_7: return KEY_APOSTROPHE;   // ' "
+        default: break;
+        }
+
+        return KEY_UNKNOWN;
+    }
+
+    inline transport::packet_builder<packets::key_event_t> make_key_event(
+        key_button_type key,
+        button_action_type action,
+        modifier_button_type mods)
+    {
+        transport::packet_builder<packets::key_event_t> pck{ static_cast<uint32_t>(packet_type::key_event) };
+        pck.body()->key = key;
+        pck.body()->action = action;
+        pck.body()->mods = mods;
         return pck;
     }
 
