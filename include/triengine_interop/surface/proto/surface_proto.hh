@@ -20,6 +20,13 @@ namespace triengine_interop::surface::proto
         ACTION_REPEAT,
     };
 
+    enum mouse_button_type
+    {
+        MOUSE_L, // left mouse button
+        MOUSE_R, // right mouse button
+        MOUSE_M, // middle mouse button
+    };
+
     enum key_button_type
     {
         KEY_UNKNOWN,
@@ -51,13 +58,6 @@ namespace triengine_interop::surface::proto
         KEY_SUBTRACT,
         KEY_DIVIDE,
         // ...
-    };
-
-    enum mouse_button_type
-    {
-        MOUSE_L, // left mouse button
-        MOUSE_R, // right mouse button
-        MOUSE_M, // middle mouse button
     };
 
     enum modifier_button_type : uint16_t
@@ -102,14 +102,6 @@ namespace triengine_interop::surface::proto
 
     namespace packets
     {
-        // Result of the init handshake, reported by the renderer in init_response_t::status.
-        enum class init_status : int32_t
-        {
-            ok = 0,
-            version_mismatch = 1, // magic/proto_version did not match PROTO_MAGIC/PROTO_VERSION
-            internal_error = 2,   // renderer failed to initialize for another reason
-        };
-
         struct init_request_t
         {
             uint32_t magic;         // must equal PROTO_MAGIC
@@ -121,9 +113,17 @@ namespace triengine_interop::surface::proto
         };
         static_assert(sizeof(init_request_t) == 20);
 
+        // Result of the init handshake, reported by the renderer in init_response_t::status.
+        enum class init_status_code : int32_t
+        {
+            ok = 0,
+            version_mismatch, // magic/proto_version did not match PROTO_MAGIC/PROTO_VERSION
+            internal_error,   // renderer failed to initialize for another reason
+        };
+
         struct init_response_t
         {
-            init_status status;
+            init_status_code status;
             DWORD renderer_process_id;
             LUID target_adapter_luid;
             HANDLE surface_handle; // DX11 shared texture handle (NT handle)

@@ -21,18 +21,33 @@ namespace triengine_interop::surface
     {
         using session_interface = surface_producer::session_interface;
 
-        void build_init_response(
+        // Build an ok init response carrying the renderer process id, adapter LUID, and
+        // shared surface handle the consumer needs to open the surface.
+        void make_init_ok_response(
             std::vector<uint8_t>& out,
-            proto::packets::init_status status,
             DWORD renderer_process_id,
             LUID adapter_luid,
             HANDLE surface_handle)
         {
             packet_builder<proto::packets::init_response_t> pck{ static_cast<uint32_t>(proto::packet_type::init_response) };
-            pck.body()->status = status;
+            pck.body()->status = proto::packets::init_status_code::ok;
             pck.body()->renderer_process_id = renderer_process_id;
             pck.body()->target_adapter_luid = adapter_luid;
             pck.body()->surface_handle = surface_handle;
+            out.assign(pck.data(), pck.data() + pck.size());
+        }
+
+        // Build a failed init response. Only the status code is meaningful; the surface
+        // fields are zeroed since there is nothing for the consumer to open.
+        void make_init_error_response(
+            std::vector<uint8_t>& out,
+            proto::packets::init_status_code status)
+        {
+            packet_builder<proto::packets::init_response_t> pck{ static_cast<uint32_t>(proto::packet_type::init_response) };
+            pck.body()->status = status;
+            pck.body()->renderer_process_id = 0;
+            pck.body()->target_adapter_luid = LUID{};
+            pck.body()->surface_handle = nullptr;
             out.assign(pck.data(), pck.data() + pck.size());
         }
 
@@ -65,11 +80,8 @@ namespace triengine_interop::surface
                                 , proto::PROTO_MAGIC
                                 , proto::PROTO_VERSION
                             );
-                            build_init_response(rep_pck_data,
-                                proto::packets::init_status::version_mismatch,
-                                0,
-                                LUID{},
-                                nullptr
+                            make_init_error_response(rep_pck_data,
+                                proto::packets::init_status_code::version_mismatch
                             );
                             return;
                         }
@@ -83,24 +95,20 @@ namespace triengine_interop::surface
                         HANDLE surface_handle = nullptr;
                         try {
                             iface.on_session_init(
-                                body->frame_width, body->frame_height,
+                                SIZE{ body->frame_width, body->frame_height },
                                 body->requested_max_fps,
                                 adapter_luid,
                                 surface_handle
                             );
                         } catch (const std::exception& e) {
                             TEIO_ERROR("renderer initialization failed: {}", e.what());
-                            build_init_response(rep_pck_data,
-                                proto::packets::init_status::internal_error,
-                                0,
-                                LUID{},
-                                nullptr
+                            make_init_error_response(rep_pck_data,
+                                proto::packets::init_status_code::internal_error
                             );
                             return;
                         }
 
-                        build_init_response(rep_pck_data,
-                            proto::packets::init_status::ok,
+                        make_init_ok_response(rep_pck_data,
                             ::GetCurrentProcessId(),
                             adapter_luid,
                             surface_handle
@@ -120,7 +128,7 @@ namespace triengine_interop::surface
                         HANDLE new_surface_handle = nullptr;
                         try {
                             iface.on_frame_resize_event(
-                                body->width, body->height, 
+                                SIZE{ body->width, body->height },
                                 new_surface_handle
                             );
                         } catch (const std::exception& e) {
@@ -156,7 +164,7 @@ namespace triengine_interop::surface
                     {
                         const auto* body = pck.body<proto::packets::mouse_button_event_t>();
                         if (body) {
-                            iface.on_mouse_button_event(body->x, body->y, body->button, body->action, body->mods);
+                            iface.on_mouse_button_event(POINT{ body->x, body->y }, body->button, body->action, body->mods);
                         }
                         break;
                     }
@@ -164,7 +172,7 @@ namespace triengine_interop::surface
                     {
                         const auto* body = pck.body<proto::packets::mouse_move_event_t>();
                         if (body) {
-                            iface.on_mouse_move_event(body->x, body->y, body->mods);
+                            iface.on_mouse_move_event(POINT{ body->x, body->y }, body->mods);
                         }
                         break;
                     }

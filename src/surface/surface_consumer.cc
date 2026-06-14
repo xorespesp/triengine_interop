@@ -71,16 +71,15 @@ namespace triengine_interop::surface
         // renderer process id, the target adapter LUID, and the shared surface NT handle.
         bool request_init(
             ipc_client& cli,
-            const int32_t frame_width,
-            const int32_t frame_height,
+            const SIZE initial_frame_size,
             const uint32_t requested_max_fps,
             proto::packets::init_response_t& out)
         {
             packet_builder<proto::packets::init_request_t> req{ static_cast<uint32_t>(proto::packet_type::init_request) };
             req.body()->magic = proto::PROTO_MAGIC;
             req.body()->proto_version = proto::PROTO_VERSION;
-            req.body()->frame_width = frame_width;
-            req.body()->frame_height = frame_height;
+            req.body()->frame_width = static_cast<int32_t>(initial_frame_size.cx);
+            req.body()->frame_height = static_cast<int32_t>(initial_frame_size.cy);
             req.body()->requested_max_fps = requested_max_fps;
 
             constexpr std::chrono::seconds init_request_timeout{ 30 };
@@ -93,7 +92,7 @@ namespace triengine_interop::surface
 
             packet_view view{ rep_bytes.data(), rep_bytes.size() };
             const auto* init_rep = view.body<proto::packets::init_response_t>();
-            if (!init_rep || init_rep->status != proto::packets::init_status::ok) {
+            if (!init_rep || init_rep->status != proto::packets::init_status_code::ok) {
                 TEIO_ERROR("init request rejected by renderer (status: {})"
                     , init_rep ? static_cast<int>(init_rep->status) : -1);
                 return false;
@@ -112,13 +111,12 @@ namespace triengine_interop::surface
         // Ask the renderer to resize its surface and return the new shared surface NT handle.
         bool request_resize(
             ipc_client& cli,
-            const int32_t new_width,
-            const int32_t new_height,
+            const SIZE new_frame_size,
             HANDLE& out_surface_handle)
         {
             packet_builder<proto::packets::frame_resize_request_t> req{ static_cast<uint32_t>(proto::packet_type::frame_resize_request) };
-            req.body()->width = new_width;
-            req.body()->height = new_height;
+            req.body()->width = static_cast<int32_t>(new_frame_size.cx);
+            req.body()->height = static_cast<int32_t>(new_frame_size.cy);
 
             std::vector<uint8_t> rep_bytes;
             if (std::errc{} != cli.send_request_sync(req.data(), req.size(), rep_bytes)) {
@@ -153,8 +151,7 @@ namespace triengine_interop::surface
 
     bool surface_consumer::connect(
         const std::string_view server_name,
-        const int32_t initial_width,
-        const int32_t initial_height,
+        const SIZE initial_frame_size,
         const surface_render_options& config)
     {
         if (this->is_connected()) {
@@ -178,8 +175,8 @@ namespace triengine_interop::surface
             ? config.max_fps.value()
             : adaptive_max_fps();
 
-        TEIO_DEBUG("Requesting initialization... (frame size {}x{}, max_fps={})"
-            , initial_width, initial_height
+        TEIO_DEBUG("Requesting initialization... (frame size: {}x{}, max fps: {})"
+            , initial_frame_size.cx, initial_frame_size.cy
             , requested_max_fps
         );
 
@@ -187,9 +184,9 @@ namespace triengine_interop::surface
         // and shared surface handle, then hand them to the blitter to open the surface.
         proto::packets::init_response_t init_rep{};
         if (!request_init(
-            *client, 
-            initial_width, initial_height, 
-            requested_max_fps, 
+            *client,
+            initial_frame_size,
+            requested_max_fps,
             init_rep))
         {
             client->disconnect();
@@ -256,16 +253,16 @@ namespace triengine_interop::surface
         }
     }
 
-    bool surface_consumer::resize(int32_t new_width, int32_t new_height)
+    bool surface_consumer::resize_frame(SIZE new_size)
     {
         if (!_client) {
-            TEIO_ERROR("resize called before connect");
+            TEIO_ERROR("resize_frame called before connect");
             return false;
         }
 
         // Ask the renderer to resize, then re-open the new shared surface in the blitter.
         HANDLE new_surface_handle{ nullptr };
-        if (!request_resize(*_client, new_width, new_height, new_surface_handle)) {
+        if (!request_resize(*_client, new_size, new_surface_handle)) {
             return false;
         }
         return _blitter.reallocate_frame(new_surface_handle);
@@ -282,22 +279,20 @@ namespace triengine_interop::surface
     }
 
     std::errc surface_consumer::send_mouse_button_event(
-        const int32_t x,
-        const int32_t y,
+        const POINT pos,
         const proto::mouse_button_type button,
         const proto::button_action_type action,
         const proto::modifier_button_type mods)
     {
-        const auto pck = proto::make_mouse_button_event(x, y, button, action, mods);
+        const auto pck = proto::make_mouse_button_event(pos.x, pos.y, button, action, mods);
         return this->send_notify(pck.data(), pck.size());
     }
 
     std::errc surface_consumer::send_mouse_move_event(
-        const int32_t x,
-        const int32_t y,
+        const POINT pos,
         const proto::modifier_button_type mods)
     {
-        const auto pck = proto::make_mouse_move_event(x, y, mods);
+        const auto pck = proto::make_mouse_move_event(pos.x, pos.y, mods);
         return this->send_notify(pck.data(), pck.size());
     }
 

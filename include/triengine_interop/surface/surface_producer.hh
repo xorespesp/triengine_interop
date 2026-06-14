@@ -39,7 +39,7 @@ namespace triengine_interop::surface
             // `requested_max_fps` is the consumer's requested frame-rate cap, relayed
             // verbatim (0 == no preference; the renderer picks a fallback).
             virtual void on_session_init(
-                int32_t width, int32_t height,
+                SIZE initial_frame_size,
                 uint32_t requested_max_fps,
                 LUID& out_adapter_luid,
                 HANDLE& out_surface_handle
@@ -49,21 +49,21 @@ namespace triengine_interop::surface
             // (DX11 shared texture) through the out-parameter. Throws on failure, which
             // the producer treats as a fatal session error.
             virtual void on_frame_resize_event(
-                int32_t width, int32_t height,
+                SIZE new_size,
                 HANDLE& out_surface_handle
             ) = 0;
 
-            // Decoded input events, already parsed into their fields (x, y are Win32
+            // Decoded input events, already parsed into their fields (`pos` is in Win32
             // screen coordinates; yoffset matches GLFW's scroll value).
             virtual void on_mouse_button_event(
-                int32_t x, int32_t y,
+                POINT pos,
                 proto::mouse_button_type button,
                 proto::button_action_type action,
                 proto::modifier_button_type mods
             ) = 0;
 
             virtual void on_mouse_move_event(
-                int32_t x, int32_t y,
+                POINT pos,
                 proto::modifier_button_type mods
             ) = 0;
 

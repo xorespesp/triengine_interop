@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <Windows.h>
 #include <triengine_interop/transport/ipc_client.hh>
 #include <triengine_interop/surface/detail/shared_texture_blitter.hh>
 #include <triengine_interop/surface/surface_render_options.hh>
@@ -40,8 +41,7 @@ namespace triengine_interop::surface
         // leaves the consumer disconnected).
         bool connect(
             std::string_view server_name,
-            int32_t initial_width,
-            int32_t initial_height,
+            SIZE initial_frame_size,
             const surface_render_options& config = {}
         );
 
@@ -62,7 +62,10 @@ namespace triengine_interop::surface
         bool sync_latest_frame(uint32_t timeout_ms = 1);
 
         // Blit the private copy onto a caller-provided render target.
-        void blit_to_render_target(ID3D11RenderTargetView* target_rtv, const D3D11_VIEWPORT& viewport);
+        void blit_to_render_target(
+            ID3D11RenderTargetView* target_rtv, 
+            const D3D11_VIEWPORT& viewport
+        );
 
         // Submit the pending GPU commands on the surface's context. Call this after
         // blitting when another device will sample the target (e.g. the Flutter
@@ -73,23 +76,21 @@ namespace triengine_interop::surface
 
         // Request a renderer resize and recreate the shared-surface side resources.
         // The caller is responsible for recreating its own present target.
-        bool resize(int32_t new_width, int32_t new_height);
+        bool resize_frame(SIZE new_size);
 
         // Send a raw input notify packet to the renderer.
         std::errc send_notify(const void* payload, size_t size);
 
         // Typed input helpers built on the proto packet builders.
         std::errc send_mouse_button_event(
-            int32_t x,
-            int32_t y,
+            POINT pos,
             proto::mouse_button_type button,
             proto::button_action_type action,
             proto::modifier_button_type mods
         );
 
         std::errc send_mouse_move_event(
-            int32_t x,
-            int32_t y,
+            POINT pos,
             proto::modifier_button_type mods
         );
 
