@@ -74,14 +74,18 @@ namespace triengine_interop::surface
                             return;
                         }
 
-                        TEIO_TRACE("init request: {}x{}", body->frame_width, body->frame_height);
+                        TEIO_TRACE("init request: {}x{} (requested_max_fps: {})"
+                            , body->frame_width, body->frame_height
+                            , body->requested_max_fps
+                        );
 
                         LUID adapter_luid{};
                         HANDLE surface_handle = nullptr;
                         try {
                             iface.on_session_init(
-                                body->frame_width, body->frame_height, 
-                                adapter_luid, 
+                                body->frame_width, body->frame_height,
+                                body->requested_max_fps,
+                                adapter_luid,
                                 surface_handle
                             );
                         } catch (const std::exception& e) {

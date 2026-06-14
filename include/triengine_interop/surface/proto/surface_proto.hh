@@ -11,7 +11,7 @@ namespace triengine_interop::surface::proto
     // The values are carried in the init handshake so a mismatch can be rejected loudly
     // instead of silently corrupting memory when the wire layout diverges between builds.
     inline constexpr uint32_t PROTO_MAGIC = 0x54564950u; // 'TVIP'
-    inline constexpr uint32_t PROTO_VERSION = 1u;
+    inline constexpr uint32_t PROTO_VERSION = 2u;
 
     enum button_action_type
     {
@@ -116,8 +116,10 @@ namespace triengine_interop::surface::proto
             uint32_t proto_version; // must equal PROTO_VERSION
             int32_t frame_width;
             int32_t frame_height;
+            // Frame-rate cap requested by the consumer (0 == renderer picks a fallback).
+            uint32_t requested_max_fps;
         };
-        static_assert(sizeof(init_request_t) == 16);
+        static_assert(sizeof(init_request_t) == 20);
 
         struct init_response_t
         {

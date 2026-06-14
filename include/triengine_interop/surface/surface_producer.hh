@@ -35,8 +35,12 @@ namespace triengine_interop::surface
             // LUID and the shared surface NT handle (DX11 shared texture) it produced
             // through the out-parameters. Throws on failure; the producer then reports
             // the failure to the consumer and rejects the connection.
+            //
+            // `requested_max_fps` is the consumer's requested frame-rate cap, relayed
+            // verbatim (0 == no preference; the renderer picks a fallback).
             virtual void on_session_init(
                 int32_t width, int32_t height,
+                uint32_t requested_max_fps,
                 LUID& out_adapter_luid,
                 HANDLE& out_surface_handle
             ) = 0;
