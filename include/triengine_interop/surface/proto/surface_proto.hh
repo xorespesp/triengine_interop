@@ -13,6 +13,10 @@ namespace triengine_interop::surface::proto
     inline constexpr uint32_t PROTO_MAGIC = 0x54564950u; // 'TVIP'
     inline constexpr uint32_t PROTO_VERSION = 2u;
 
+    // Keyed-mutex key shared by the surface producer (GL writer) and consumer (D3D11 reader).
+    // Both endpoints MUST use the same key so their AcquireSync/ReleaseSync calls pair correctly.
+    inline constexpr std::uint64_t SHARED_SURFACE_MUTEX_KEY = 0u;
+
     enum button_action_type
     {
         ACTION_PRESS,

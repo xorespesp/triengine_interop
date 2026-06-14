@@ -12,12 +12,12 @@ namespace triengine_interop::surface::detail
     // The DX11 engine behind surface_consumer: opens a producer process's shared DX11
     // surface and presents it locally.
     //
-    // Given the renderer process id, the target adapter LUID, and the shared surface NT
-    // handle, it creates a D3D11 device on that adapter, opens the shared keyed-mutex
-    // texture, synchronizes the latest frame into a private copy, and blits that copy
-    // (optionally Y-flipped / channel-swapped) onto a render target the caller owns. It
-    // performs no IPC of its own: the caller resolves those three inputs (via the init
-    // handshake) and hands them in.
+    // Given the renderer process id, the target adapter LUID, the shared surface NT
+    // handle, and the keyed-mutex key, it creates a D3D11 device on that adapter, opens
+    // the shared keyed-mutex texture, synchronizes the latest frame into a private copy,
+    // and blits that copy (optionally Y-flipped / channel-swapped) onto a render target
+    // the caller owns. It performs no IPC of its own and knows nothing of the wire
+    // protocol: the caller resolves those inputs (via the init handshake) and hands them in.
     //
     // It is present-target-agnostic: it does not own a swap chain or an exported texture.
     // The caller creates its own present target (a swap-chain back buffer, an exported
@@ -45,11 +45,14 @@ namespace triengine_interop::surface::detail
         // Create the D3D11 device on the given adapter, open the producer's shared
         // surface, and build the blit pipeline. The frame size is read from the opened
         // surface (no width/height is passed in). `renderer_process_id` is used to
-        // duplicate the shared NT handle into this process.
+        // duplicate the shared NT handle into this process. `mutex_key` is the keyed-mutex
+        // key shared with the producer; it is retained for this surface's lifetime and
+        // used by sync_latest_frame() (and across reallocate_frame()).
         bool create(
             DWORD renderer_process_id,
             LUID target_adapter_luid,
             HANDLE surface_handle,
+            std::uint64_t mutex_key,
             const surface_render_options& config = {}
         );
 

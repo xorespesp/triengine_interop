@@ -198,6 +198,7 @@ namespace triengine_interop::surface
             init_rep.renderer_process_id,
             init_rep.target_adapter_luid,
             init_rep.surface_handle,
+            proto::SHARED_SURFACE_MUTEX_KEY,
             config))
         {
             TEIO_ERROR("failed to create shared texture blitter");

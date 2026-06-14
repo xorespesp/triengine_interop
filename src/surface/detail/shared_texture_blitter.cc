@@ -288,6 +288,7 @@ namespace triengine_interop::surface::detail
             const DWORD renderer_process_id,
             const LUID target_adapter_luid,
             const HANDLE surface_handle,
+            const std::uint64_t mutex_key,
             const surface_render_options& config)
         {
             if (_created) {
@@ -341,6 +342,7 @@ namespace triengine_interop::surface::detail
 
             // 5. commit
             _config = config;
+            _mutex_key = mutex_key;
             _renderer_process_handle = std::move(renderer_process_handle);
             _device = std::move(new_device);
             _context = std::move(new_context);
@@ -397,12 +399,11 @@ namespace triengine_interop::surface::detail
             //         - WAIT_ABANDONED : SharedSurface와 KeyedMutex가 더 이상 일관된 상태가 아님.
             //                            이 경우, KeyedMutex와 SharedSurface 둘 다 해제한 후 재생성해야 함.
             //       Ref: https://learn.microsoft.com/en-us/windows/win32/api/dxgi/nf-dxgi-idxgikeyedmutex-acquiresync
-            constexpr UINT64 kMutexKey = 0;
-            switch (const HRESULT sync_hr = _surface_resources->shared_tex_keyed_mutex->AcquireSync(kMutexKey, timeout_ms)) {
+            switch (const HRESULT sync_hr = _surface_resources->shared_tex_keyed_mutex->AcquireSync(_mutex_key, timeout_ms)) {
             case WAIT_OBJECT_0: // KeyedMutex를 성공적으로 획득했으므로 렌더링 작업 진행 가능
                 // Shared 텍스처를 복사본 텍스처로 복사 (락 점유 시간을 최소화하기 위해 별도 텍스처로 데이터를 복사한 뒤 렌더링 수행)
                 _context->CopyResource(_surface_resources->copy_tex.Get(), _surface_resources->shared_tex.Get());
-                _surface_resources->shared_tex_keyed_mutex->ReleaseSync(kMutexKey); // 텍스처 사용이 끝났으므로 KeyedMutex 잠금 해제
+                _surface_resources->shared_tex_keyed_mutex->ReleaseSync(_mutex_key); // 텍스처 사용이 끝났으므로 KeyedMutex 잠금 해제
                 return true;
             case WAIT_TIMEOUT: // KeyedMutex를 획득하지 못했으므로 렌더링 작업을 건너뜀
                 return true; // Continue rendering with the previous frame to maintain smooth presentation
@@ -540,6 +541,7 @@ namespace triengine_interop::surface::detail
     private:
         bool _created{ false }; // whether create() has succeeded
         surface_render_options _config{}; // blit options (Y-flip / channel swap)
+        std::uint64_t _mutex_key{}; // keyed-mutex key supplied by the caller; shared with the producer
 
         unique_handle _renderer_process_handle; // renderer process, used to duplicate shared-surface handles
 
@@ -567,18 +569,34 @@ namespace triengine_interop::surface::detail
 
     bool shared_texture_blitter::is_created() const noexcept { return _imp->is_created(); }
 
-    bool shared_texture_blitter::create(DWORD renderer_process_id, LUID target_adapter_luid, HANDLE surface_handle, const surface_render_options& config)
+    bool shared_texture_blitter::create(
+        DWORD renderer_process_id, 
+        LUID target_adapter_luid, 
+        HANDLE surface_handle, 
+        std::uint64_t mutex_key, 
+        const surface_render_options& config)
     {
-        return _imp->create(renderer_process_id, target_adapter_luid, surface_handle, config);
+        return _imp->create(
+            renderer_process_id, 
+            target_adapter_luid, 
+            surface_handle, 
+            mutex_key, 
+            config
+        );
     }
 
     void shared_texture_blitter::destroy() { _imp->destroy(); }
 
     bool shared_texture_blitter::sync_latest_frame(uint32_t timeout_ms) { return _imp->sync_latest_frame(timeout_ms); }
 
-    void shared_texture_blitter::blit_to_render_target(ID3D11RenderTargetView* target_rtv, const D3D11_VIEWPORT& viewport)
+    void shared_texture_blitter::blit_to_render_target(
+        ID3D11RenderTargetView* target_rtv, 
+        const D3D11_VIEWPORT& viewport)
     {
-        _imp->blit_to_render_target(target_rtv, viewport);
+        _imp->blit_to_render_target(
+            target_rtv, 
+            viewport
+        );
     }
 
     bool shared_texture_blitter::reallocate_frame(HANDLE new_surface_handle)
