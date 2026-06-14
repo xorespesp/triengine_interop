@@ -1,7 +1,5 @@
 ﻿#include <triengine_interop/surface/surface_consumer.hh>
 #include <triengine_interop/transport/ipc_packet.hh>
-
-#include <triengine_interop/utility/bit.hh>
 #include <triengine_interop/utility/logger.hh>
 
 #include <utility>
@@ -16,58 +14,6 @@ namespace triengine_interop::surface
 
     namespace
     {
-        // Surveys all active monitors and returns the highest refresh rate scaled by the
-        // over-produce margin, to be used as the adaptive frame-rate cap. Taking the maximum
-        // across monitors keeps the cap adequate if the consumer window is later moved to a
-        // faster display (the handshake samples this only once, at connect). 
-        // Falls back to a fixed cap if no refresh rate could be determined.
-        uint32_t adaptive_max_fps()
-        {
-            uint32_t max_hz{ 0 };
-            ::EnumDisplayMonitors(nullptr, nullptr,
-                [](HMONITOR hmon, HDC, LPRECT, LPARAM lparam) -> BOOL
-                {
-                    uint32_t& out_max_hz = *utility::bit_cast<uint32_t*>(lparam);
-
-                    MONITORINFOEXA mi{};
-                    mi.cbSize = sizeof(mi);
-                    if (::GetMonitorInfoA(hmon, &mi)) {
-                        DEVMODEA dm{};
-                        dm.dmSize = sizeof(dm);
-                        if (::EnumDisplaySettingsA(mi.szDevice, ENUM_CURRENT_SETTINGS, &dm)) {
-                            // 0 or 1 means "default/unknown" rather than an actual hardware rate.
-                            const uint32_t hz = static_cast<uint32_t>(dm.dmDisplayFrequency);
-                            TEIO_DEBUG("{}: refresh rate {} Hz", mi.szDevice, hz);
-                            if (hz > 1 && hz > out_max_hz) {
-                                out_max_hz = hz;
-                            }
-                        }
-                    }
-                    return TRUE; // continue enumeration
-                },
-                utility::bit_cast<LPARAM>(&max_hz)
-            );
-
-            if (max_hz == 0) {
-                constexpr uint32_t kFallbackMaxFps{ 200 };
-                TEIO_WARN("failed to determine display refresh rate, falling back to {} fps", kFallbackMaxFps);
-                return kFallbackMaxFps;
-            }
-
-            // Over-produce margin applied on top of the display refresh rate. The producer and
-            // consumer run as two unsynchronized loops, so producing somewhat faster than the
-            // display keeps the consumed frame fresh (lower input latency) at a modest CPU cost.
-            constexpr double kOverproduceFactor{ 2.0 };
-
-            // Absolute ceiling on the requested cap. Staleness shrinks as ~1/fps, so beyond a
-            // few hundred fps the extra frames cost CPU/power for negligible latency gain. Clamp
-            // so high-refresh displays do not push production into wasteful territory.
-            constexpr uint32_t kMaxRequestedFps{ 240 };
-
-            const uint32_t requested = static_cast<uint32_t>(std::floor(max_hz * kOverproduceFactor));
-            return requested < kMaxRequestedFps ? requested : kMaxRequestedFps;
-        }
-
         // Send the init request and await the renderer's init response, which carries the
         // renderer process id, the target adapter LUID, and the shared surface NT handle.
         bool request_init(
@@ -170,15 +116,9 @@ namespace triengine_interop::surface
             return false;
         }
 
-        // Resolve the frame-rate cap to request: an explicit override from the caller, or
-        // the adaptive value derived from the local displays when left unset (nullopt).
-        const uint32_t resolved_max_fps = config.max_fps.has_value()
-            ? config.max_fps.value()
-            : adaptive_max_fps();
-
         TEIO_DEBUG("Requesting initialization... (frame size: {}x{}, max fps: {})"
             , initial_frame_size.cx, initial_frame_size.cy
-            , resolved_max_fps
+            , config.max_fps
         );
 
         // Run the init handshake to obtain the renderer process id, target adapter LUID,
@@ -187,7 +127,7 @@ namespace triengine_interop::surface
         if (!request_init(
             *client,
             initial_frame_size,
-            resolved_max_fps,
+            config.max_fps,
             init_rep))
         {
             client->disconnect();
@@ -270,13 +210,9 @@ namespace triengine_interop::surface
         return _blitter.reallocate_frame(new_surface_handle);
     }
 
-    std::errc surface_consumer::change_max_fps(std::optional<uint32_t> max_fps)
+    std::errc surface_consumer::change_max_fps(uint32_t max_fps)
     {
-        const uint32_t resolved_max_fps = max_fps.has_value()
-            ? max_fps.value()
-            : adaptive_max_fps();
-
-        const auto pck = proto::make_change_max_fps_event(resolved_max_fps);
+        const auto pck = proto::make_change_max_fps_event(max_fps);
         return this->send_notify(pck.data(), pck.size());
     }
 

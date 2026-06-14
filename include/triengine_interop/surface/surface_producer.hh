@@ -54,8 +54,7 @@ namespace triengine_interop::surface
             ) = 0;
 
             // Change the renderer's frame-rate cap at runtime.
-            // `max_fps` is the resolved cap (0 == uncapped); the consumer resolves any
-            // adaptive value before sending, so it is relayed verbatim.
+            // (max_fps 0 == uncapped)
             virtual void on_change_max_fps(uint32_t max_fps) = 0;
 
             // Decoded mouse events.

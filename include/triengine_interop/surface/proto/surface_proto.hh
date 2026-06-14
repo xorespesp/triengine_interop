@@ -134,8 +134,8 @@ namespace triengine_interop::surface::proto
             uint32_t proto_version; // must equal PROTO_VERSION
             int32_t frame_width;
             int32_t frame_height;
-            // Frame-rate cap requested by the consumer, with the adaptive case already
-            // resolved consumer-side: 0 == uncapped, N (> 0) == cap at N fps.
+            // Frame-rate cap requested by the consumer.
+            // 0 == uncapped, N (> 0) == cap at N fps.
             uint32_t max_fps;
         };
         static_assert(sizeof(init_request_t) == 20);
@@ -208,8 +208,8 @@ namespace triengine_interop::surface::proto
         // packet_type::change_max_fps_event
         struct change_max_fps_event_t
         {
-            // Frame-rate cap requested by the consumer, with the adaptive case already
-            // resolved consumer-side: 0 == uncapped, N (> 0) == cap at N fps.
+            // Frame-rate cap requested by the consumer.
+            // 0 == uncapped, N (> 0) == cap at N fps.
             uint32_t max_fps;
         };
         static_assert(sizeof(change_max_fps_event_t) == 4);

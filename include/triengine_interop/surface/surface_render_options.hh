@@ -1,6 +1,4 @@
 ﻿#pragma once
-
-#include <optional>
 #include <cstdint>
 
 namespace triengine_interop::surface
@@ -14,10 +12,9 @@ namespace triengine_interop::surface
         bool convert_rgba_to_bgra = false; // swap R/B channels in the blit shader
 
         // Frame-rate cap requested of the renderer (a production cap, NOT a vsync).
-        //   nullopt (default) : derive the cap adaptively from the local displays.
-        //   MAX_FPS_UNCAPPED  : uncapped (no limit).
-        //   N (> 0)           : cap at N fps, sent as-is.
-        std::optional<uint32_t> max_fps = std::nullopt;
+        //   MAX_FPS_UNCAPPED (default) : uncapped (no limit).
+        //   N (> 0)                    : cap at N fps.
+        uint32_t max_fps = MAX_FPS_UNCAPPED;
     };
 
 } // namespace triengine_interop::surface
