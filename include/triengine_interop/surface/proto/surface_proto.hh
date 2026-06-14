@@ -11,7 +11,7 @@ namespace triengine_interop::surface::proto
     // The values are carried in the init handshake so a mismatch can be rejected loudly
     // instead of silently corrupting memory when the wire layout diverges between builds.
     inline constexpr uint32_t PROTO_MAGIC = 0x54564950u; // 'TVIP'
-    inline constexpr uint32_t PROTO_VERSION = 2u;
+    inline constexpr uint32_t PROTO_VERSION = 3u;
 
     // Keyed-mutex key shared by the surface producer (GL writer) and consumer (D3D11 reader).
     // Both endpoints MUST use the same key so their AcquireSync/ReleaseSync calls pair correctly.
@@ -123,6 +123,7 @@ namespace triengine_interop::surface::proto
         mouse_scroll_event,
         mouse_button_event,
         key_event,
+        change_max_fps_event,
     };
 
     namespace packets
@@ -133,7 +134,9 @@ namespace triengine_interop::surface::proto
             uint32_t proto_version; // must equal PROTO_VERSION
             int32_t frame_width;
             int32_t frame_height;
-            uint32_t requested_max_fps; // Frame-rate cap requested by the consumer (0 == uncapped, no limit).
+            // Frame-rate cap requested by the consumer, with the adaptive case already
+            // resolved consumer-side: 0 == uncapped, N (> 0) == cap at N fps.
+            uint32_t max_fps;
         };
         static_assert(sizeof(init_request_t) == 20);
 
@@ -201,6 +204,15 @@ namespace triengine_interop::surface::proto
             button_action_type action; // PRESS / RELEASE / REPEAT
             modifier_button_type mods;
         };
+
+        // packet_type::change_max_fps_event
+        struct change_max_fps_event_t
+        {
+            // Frame-rate cap requested by the consumer, with the adaptive case already
+            // resolved consumer-side: 0 == uncapped, N (> 0) == cap at N fps.
+            uint32_t max_fps;
+        };
+        static_assert(sizeof(change_max_fps_event_t) == 4);
 
     } // namespace packets
 
@@ -309,6 +321,13 @@ namespace triengine_interop::surface::proto
         pck.body()->key = key;
         pck.body()->action = action;
         pck.body()->mods = mods;
+        return pck;
+    }
+
+    inline transport::packet_builder<packets::change_max_fps_event_t> make_change_max_fps_event(uint32_t max_fps)
+    {
+        transport::packet_builder<packets::change_max_fps_event_t> pck{ static_cast<uint32_t>(packet_type::change_max_fps_event) };
+        pck.body()->max_fps = max_fps;
         return pck;
     }
 

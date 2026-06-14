@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <system_error>
 #include <cstddef>
@@ -77,6 +78,12 @@ namespace triengine_interop::surface
         // Request a renderer resize and recreate the shared-surface side resources.
         // The caller is responsible for recreating its own present target.
         bool resize_frame(SIZE new_size);
+
+        // Change the renderer's frame-rate cap at runtime.
+        //   nullopt           : derive adaptively from the local displays.
+        //   MAX_FPS_UNCAPPED  : uncapped.
+        //   N (> 0)           : cap at N fps.
+        std::errc change_max_fps(std::optional<uint32_t> max_fps);
 
         // Send a raw input notify packet to the renderer.
         std::errc send_notify(const void* payload, size_t size);

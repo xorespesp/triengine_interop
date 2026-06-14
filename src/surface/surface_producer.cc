@@ -86,9 +86,9 @@ namespace triengine_interop::surface
                             return;
                         }
 
-                        TEIO_TRACE("init request: {}x{} (requested_max_fps: {})"
+                        TEIO_TRACE("init request: {}x{} (max_fps: {})"
                             , body->frame_width, body->frame_height
-                            , body->requested_max_fps
+                            , body->max_fps
                         );
 
                         LUID adapter_luid{};
@@ -96,7 +96,7 @@ namespace triengine_interop::surface
                         try {
                             iface.on_session_init(
                                 SIZE{ body->frame_width, body->frame_height },
-                                body->requested_max_fps,
+                                body->max_fps,
                                 adapter_luid,
                                 surface_handle
                             );
@@ -189,6 +189,14 @@ namespace triengine_interop::surface
                         const auto* body = pck.body<proto::packets::key_event_t>();
                         if (body && body->key != proto::KEY_UNKNOWN) {
                             iface.on_key_event(body->key, body->action, body->mods);
+                        }
+                        break;
+                    }
+                    case proto::packet_type::change_max_fps_event:
+                    {
+                        const auto* body = pck.body<proto::packets::change_max_fps_event_t>();
+                        if (body) {
+                            iface.on_change_max_fps(body->max_fps);
                         }
                         break;
                     }

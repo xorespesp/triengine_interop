@@ -73,7 +73,7 @@ namespace triengine_interop::surface
         bool request_init(
             ipc_client& cli,
             const SIZE initial_frame_size,
-            const uint32_t requested_max_fps,
+            const uint32_t resolved_max_fps,
             proto::packets::init_response_t& out)
         {
             packet_builder<proto::packets::init_request_t> req{ static_cast<uint32_t>(proto::packet_type::init_request) };
@@ -81,7 +81,7 @@ namespace triengine_interop::surface
             req.body()->proto_version = proto::PROTO_VERSION;
             req.body()->frame_width = static_cast<int32_t>(initial_frame_size.cx);
             req.body()->frame_height = static_cast<int32_t>(initial_frame_size.cy);
-            req.body()->requested_max_fps = requested_max_fps;
+            req.body()->max_fps = resolved_max_fps;
 
             constexpr std::chrono::seconds init_request_timeout{ 30 };
 
@@ -172,13 +172,13 @@ namespace triengine_interop::surface
 
         // Resolve the frame-rate cap to request: an explicit override from the caller, or
         // the adaptive value derived from the local displays when left unset (nullopt).
-        const uint32_t requested_max_fps = config.max_fps.has_value()
+        const uint32_t resolved_max_fps = config.max_fps.has_value()
             ? config.max_fps.value()
             : adaptive_max_fps();
 
         TEIO_DEBUG("Requesting initialization... (frame size: {}x{}, max fps: {})"
             , initial_frame_size.cx, initial_frame_size.cy
-            , requested_max_fps
+            , resolved_max_fps
         );
 
         // Run the init handshake to obtain the renderer process id, target adapter LUID,
@@ -187,7 +187,7 @@ namespace triengine_interop::surface
         if (!request_init(
             *client,
             initial_frame_size,
-            requested_max_fps,
+            resolved_max_fps,
             init_rep))
         {
             client->disconnect();
@@ -268,6 +268,16 @@ namespace triengine_interop::surface
             return false;
         }
         return _blitter.reallocate_frame(new_surface_handle);
+    }
+
+    std::errc surface_consumer::change_max_fps(std::optional<uint32_t> max_fps)
+    {
+        const uint32_t resolved_max_fps = max_fps.has_value()
+            ? max_fps.value()
+            : adaptive_max_fps();
+
+        const auto pck = proto::make_change_max_fps_event(resolved_max_fps);
+        return this->send_notify(pck.data(), pck.size());
     }
 
     std::errc surface_consumer::send_notify(
